@@ -1,0 +1,31 @@
+{
+  "name": "alumini-student-platform",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server/server.js",
+    "seed": "node server/seed/seedData.js",
+    "ingest": "node scripts/ingestData.js",
+    "extract": "node scripts/extractData.js",
+    "process": "node scripts/processData.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "fs-extra": "^11.3.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.20.1",
+    "multer": "^2.0.2",
+    "pdf-parse": "^1.1.1",
+    "socket.io": "^4.8.3",
+    "xlsx": "^0.18.5"
+  }
+}

@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: asp-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: alumni_student_platform
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - asp-network
+
+  # Redis (for Socket.io adapter & sessions)
+  redis:
+    image: redis:7-alpine
+    container_name: asp-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - asp-network
+
+  # Backend API Server
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asp-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - MONGO_DB_URL=mongodb://admin:admin123@mongodb:27017/alumni_student_platform?authSource=admin
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - ./server:/app/server
+      - ./data:/app/data
+      - ./files:/app/files
+      - ./scripts:/app/scripts
+      - ./package.json:/app/package.json
+      - /app/node_modules
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - asp-network
+
+  # Frontend Dev Server
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: asp-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    volumes:
+      - ./client/src:/app/src
+      - ./client/public:/app/public
+      - ./client/index.html:/app/index.html
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - asp-network
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  asp-network:
+    driver: bridge
