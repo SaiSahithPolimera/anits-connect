@@ -73,48 +73,49 @@ export default function ProfilePage() {
     const branches = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'CSBS'];
 
     return (
-        <div className="min-h-screen bg-gray-950 pt-20 px-4 pb-8">
-            <div className="max-w-2xl mx-auto">
-                <h1 className="text-2xl font-bold text-white flex items-center gap-2 mb-6">
-                    <User size={24} className="text-indigo-400" /> Edit Profile
-                </h1>
-
-                <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl p-6 space-y-5">
-                    {/* Avatar + Email */}
-                    <div className="flex items-center gap-4 pb-5 border-b border-gray-800/50">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold">
-                            {form.name?.[0] || '?'}
+        <div style={{ minHeight: '100vh', background: '#f3f4f6', color: '#1f2937', paddingTop: 96, paddingBottom: 48, paddingLeft: 16, paddingRight: 16 }}>
+            <div style={{ maxWidth: 840, margin: '0 auto', boxShadow: '0 20px 40px rgba(15, 23, 42, 0.08)', borderRadius: 20, overflow: 'hidden', border: '1px solid #e5e7eb', backgroundColor: '#fff' }}>
+                <div style={{ background: 'linear-gradient(90deg, #4f46e5, #8b5cf6)', padding: 26 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14 }}> 
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                            <div style={{ width: 64, height: 64, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.22)', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#fff', fontSize: 26, fontWeight: 700 }}>
+                                {form.name?.[0] || '?'}
+                            </div>
+                            <div>
+                                <h1 style={{ fontSize: 30, fontWeight: 800, color: '#ffffff', margin: 0 }}>Edit Profile</h1>
+                                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', margin: '6px 0 0' }}>Update your personal details and mentoring profile.</p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-white font-medium">{user?.email}</p>
-                            <p className="text-xs text-gray-500 capitalize">{user?.role} Account</p>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.16)', color: '#fff', padding: '8px 14px', borderRadius: 12 }}>
+                            <User size={18} /> {user?.email}
                         </div>
                     </div>
+                </div>
 
-                    {/* Common Fields */}
+                <div style={{ padding: 26, }}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="col-span-2">
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Full Name</label>
+                        <div className="col-span-1 md:col-span-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
                             <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                                className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-indigo-500 text-sm" />
+                                className="w-full rounded-xl border border-gray-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Phone</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
                             <input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
-                                className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-indigo-500 text-sm" />
+                                className="w-full rounded-xl border border-gray-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Branch</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Branch</label>
                             <select value={form.branch} onChange={e => setForm({ ...form, branch: e.target.value })}
-                                className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-indigo-500 text-sm">
+                                className="w-full rounded-xl border border-gray-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                                 <option value="">Select</option>
                                 {branches.map(b => <option key={b} value={b}>{b}</option>)}
                             </select>
                         </div>
-                        <div className="col-span-2">
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Bio</label>
-                            <textarea value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })} rows={2}
-                                className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-indigo-500 text-sm resize-none" />
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Bio</label>
+                            <textarea value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })} rows={3}
+                                className="w-full rounded-xl border border-gray-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                         </div>
                     </div>
 
@@ -184,10 +185,38 @@ export default function ProfilePage() {
                         </div>
                     )}
 
-                    <button onClick={handleSave} disabled={saving}
-                        className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-medium hover:from-indigo-600 hover:to-purple-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-                        {saving ? <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full"></div> : <><Save size={18} /> Save Profile</>}
-                    </button>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'flex-end' }}>
+                        <button onClick={() => {
+                            setForm({
+                                name: profile?.name || '',
+                                phone: profile?.phone || '',
+                                bio: profile?.bio || '',
+                                branch: profile?.branch || '',
+                                year: profile?.year || '',
+                                cgpa: profile?.cgpa || '',
+                                company: profile?.company || '',
+                                role: profile?.role || '',
+                                department: profile?.department || '',
+                                graduationYear: profile?.graduationYear || '',
+                                placementExperience: profile?.placementExperience || '',
+                                linkedinUrl: profile?.linkedinUrl || '',
+                                isAvailableForMentoring: profile?.isAvailableForMentoring ?? true,
+                                skills: profile?.skills || [],
+                                targetCompanies: profile?.targetCompanies || [],
+                                careerInterests: profile?.careerInterests || [],
+                                mentorTopics: profile?.mentorTopics || []
+                            });
+                        }}
+                            style={{ padding: '10px 16px', border: '1px solid #d1d5db', borderRadius: 12, fontSize: 14, color: '#374151', background: '#fff', cursor: 'pointer' }}>
+                            Reset
+                        </button>
+
+                        <button onClick={handleSave} disabled={saving}
+                            style={{ padding: '10px 18px', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.65 : 1 }}>
+                            {saving ? <div style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.65)', borderTop: '2px solid #fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} /> : <Save size={16} />}
+                            Save Profile
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

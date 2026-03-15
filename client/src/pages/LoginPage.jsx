@@ -98,6 +98,16 @@ export default function LoginPage() {
                     </button>
                 </form>
 
+                {/* Sign Up Link */}
+                <div style={{ padding: '0 32px 16px', textAlign: 'center' }}>
+                    <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+                        Don't have an account?{' '}
+                        <a href="/register" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}>
+                            Sign Up
+                        </a>
+                    </p>
+                </div>
+
                 {/* Demo Credentials */}
                 <div style={{ padding: '0 32px 28px' }}>
                     <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 12 }}>

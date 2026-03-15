@@ -6,9 +6,12 @@ import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import HomePage from './pages/HomePage';
+import ProfilePage from './pages/ProfilePage';
 import ChatPage from './pages/ChatPage';
 import AIPage from './pages/AIPage';
+import AdminDashboard from './pages/AdminDashboard';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -28,11 +31,14 @@ function AppRoutes() {
     <>
       {user && <Navbar />}
       <Routes>
-        <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
+        <Route path="/login" element={user ? <Navigate to={user.role === 'admin' ? '/admin' : '/'} /> : <LoginPage />} />
+        <Route path="/register" element={user ? <Navigate to={user.role === 'admin' ? '/admin' : '/'} /> : <RegisterPage />} />
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
         <Route path="/chat/:seniorId?" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
         <Route path="/ai" element={<ProtectedRoute><AIPage /></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to={user ? "/" : "/login"} />} />
+        <Route path="*" element={<Navigate to={user ? (user.role === 'admin' ? '/admin' : '/') : '/login'} />} />
       </Routes>
     </>
   );

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Users, MessageSquare, Sparkles, LogOut, Menu, X } from 'lucide-react';
+import { Users, User, MessageSquare, Sparkles, LogOut, Menu, X, Shield } from 'lucide-react';
 
 export default function Navbar() {
     const { user, logout } = useAuth();
@@ -17,8 +17,10 @@ export default function Navbar() {
 
     const navItems = [
         { to: '/', icon: Users, label: 'Seniors' },
+        { to: '/profile', icon: User, label: 'Profile' },
         { to: '/chat', icon: MessageSquare, label: 'Messages' },
         { to: '/ai', icon: Sparkles, label: 'Ask' },
+        ...(user.role === 'admin' ? [{ to: '/admin', icon: Shield, label: 'Admin' }] : [])
     ];
 
     return (
