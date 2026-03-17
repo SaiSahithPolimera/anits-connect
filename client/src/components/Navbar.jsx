@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Users, User, MessageSquare, Sparkles, LogOut, Menu, X, Shield } from 'lucide-react';
+import {
+    Users, User, MessageSquare, Sparkles,
+    LogOut, Menu, X, Shield, Trophy,
+    CalendarCheck, Bell, GraduationCap
+} from 'lucide-react';
+import './Navbar.css';
 
 export default function Navbar() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
-    const [mobileOpen, setMobileOpen] = useState(false);
+    const [open, setOpen] = useState(false);
 
     if (!user) return null;
 
@@ -16,131 +21,99 @@ export default function Navbar() {
     };
 
     const navItems = [
-        { to: '/', icon: Users, label: 'Seniors' },
-        { to: '/profile', icon: User, label: 'Profile' },
-        { to: '/chat', icon: MessageSquare, label: 'Messages' },
-        { to: '/ai', icon: Sparkles, label: 'Ask' },
-        ...(user.role === 'admin' ? [{ to: '/admin', icon: Shield, label: 'Admin' }] : [])
+        { to: '/',               icon: Users,         label: 'Seniors'        },
+        { to: '/mentors',        icon: GraduationCap, label: 'Mentors'        },
+        { to: '/mock-interview', icon: CalendarCheck, label: 'Mock Interview' },
+        { to: '/notifications',  icon: Bell,          label: 'Notifications'  },
+        { to: '/profile',        icon: User,          label: 'Profile'        },
+        { to: '/chat',           icon: MessageSquare, label: 'Messages'       },
+        { to: '/ai',             icon: Sparkles,      label: 'Ask AI'         },
+        { to: '/leaderboard',    icon: Trophy,        label: 'Leaderboard'    },
+        ...(user.role === 'admin'
+            ? [{ to: '/admin', icon: Shield, label: 'Admin' }]
+            : [])
     ];
 
+    const avatarLetter = user?.email?.[0]?.toUpperCase() || 'U';
+
     return (
-        <nav style={{
-            background: '#fff',
-            borderBottom: '1px solid var(--border)',
-            position: 'sticky',
-            top: 0,
-            zIndex: 50,
-            boxShadow: 'var(--shadow-sm)'
-        }}>
-            <div style={{
-                maxWidth: 1200,
-                margin: '0 auto',
-                padding: '0 24px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                height: 60
-            }}>
-                {/* Logo */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{
-                        width: 32, height: 32,
-                        background: 'linear-gradient(135deg, var(--primary), var(--accent))',
-                        borderRadius: 8,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#fff', fontWeight: 700, fontSize: 14
-                    }}>A</div>
-                    <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--text)' }}>
-                        ANITS <span style={{ color: 'var(--primary)', fontWeight: 600 }}>Connect</span>
+        <>
+            {/* ── Mobile top bar ── */}
+            <div className="sb-mobile-bar">
+                <NavLink to="/" className="sb-mobile-logo">
+                    <div className="sb-logo-mark" style={{ width: 30, height: 30, fontSize: 13 }}>A</div>
+                    <span className="sb-logo-text" style={{ fontSize: 14 }}>
+                        ANITS <em>Connect</em>
                     </span>
-                </div>
-
-                {/* Desktop Nav */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} className="desktop-nav">
-                    {navItems.map(item => (
-                        <NavLink
-                            key={item.to}
-                            to={item.to}
-                            end={item.to === '/'}
-                            style={({ isActive }) => ({
-                                display: 'flex', alignItems: 'center', gap: 6,
-                                padding: '8px 16px',
-                                borderRadius: 8,
-                                fontSize: 14, fontWeight: 500,
-                                color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
-                                background: isActive ? 'var(--primary-50)' : 'transparent',
-                                textDecoration: 'none',
-                                transition: 'all 0.2s'
-                            })}
-                        >
-                            <item.icon size={18} />
-                            {item.label}
-                        </NavLink>
-                    ))}
-                </div>
-
-                {/* Right side */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-muted)', display: 'none' }} className="desktop-only">
-                        {user.email}
-                    </span>
-                    <button onClick={handleLogout} className="btn btn-ghost btn-sm" title="Logout"
-                        style={{ color: 'var(--text-muted)' }}>
-                        <LogOut size={18} />
-                    </button>
-
-                    {/* Mobile menu toggle */}
-                    <button
-                        onClick={() => setMobileOpen(!mobileOpen)}
-                        className="btn btn-ghost btn-icon mobile-only"
-                        style={{ display: 'none' }}
-                    >
-                        {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-                    </button>
-                </div>
+                </NavLink>
+                <button
+                    className="sb-hamburger"
+                    onClick={() => setOpen(true)}
+                    aria-label="Open menu"
+                >
+                    <Menu size={18} />
+                </button>
             </div>
 
-            {/* Mobile Menu */}
-            {mobileOpen && (
-                <div style={{
-                    borderTop: '1px solid var(--border)',
-                    padding: '8px 16px',
-                    background: '#fff'
-                }} className="animate-fade-in">
+            {/* ── Mobile overlay ── */}
+            {open && (
+                <div className="sb-overlay" onClick={() => setOpen(false)} />
+            )}
+
+            {/* ── Sidebar ── */}
+            <nav className={`sb-root${open ? ' open' : ''}`}>
+
+                {/* Logo */}
+                <NavLink to="/" className="sb-logo-wrap" onClick={() => setOpen(false)}>
+                    <div className="sb-logo-mark">A</div>
+                    <span className="sb-logo-text">
+                        ANITS <em>Connect</em>
+                    </span>
+                </NavLink>
+
+                {/* User card */}
+                <div className="sb-user">
+                    <div className="sb-user-avatar">{avatarLetter}</div>
+                    <div className="sb-user-info">
+                        <p className="sb-user-email">{user.email}</p>
+                        <span className="sb-user-role">{user.role}</span>
+                    </div>
+                </div>
+
+                {/* Section label */}
+                <p className="sb-section-label">Navigation</p>
+
+                {/* Links */}
+                <div className="sb-links">
                     {navItems.map(item => (
                         <NavLink
                             key={item.to}
                             to={item.to}
                             end={item.to === '/'}
-                            onClick={() => setMobileOpen(false)}
-                            style={({ isActive }) => ({
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                padding: '12px 16px',
-                                borderRadius: 8,
-                                fontSize: 14, fontWeight: 500,
-                                color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
-                                background: isActive ? 'var(--primary-50)' : 'transparent',
-                                textDecoration: 'none'
-                            })}
+                            onClick={() => setOpen(false)}
+                            className={({ isActive }) =>
+                                `sb-link${isActive ? ' active' : ''}${item.label === 'Admin' ? ' sb-admin' : ''}`
+                            }
                         >
-                            <item.icon size={18} />
+                            <span className="sb-link-icon">
+                                <item.icon size={16} />
+                            </span>
                             {item.label}
                         </NavLink>
                     ))}
                 </div>
-            )}
 
-            <style>{`
-        @media (max-width: 768px) {
-          .desktop-nav { display: none !important; }
-          .desktop-only { display: none !important; }
-          .mobile-only { display: flex !important; }
-        }
-        @media (min-width: 769px) {
-          .mobile-only { display: none !important; }
-          .desktop-only { display: block !important; }
-        }
-      `}</style>
-        </nav>
+                {/* Sign out */}
+                <div className="sb-footer">
+                    <button className="sb-logout" onClick={handleLogout}>
+                        <span className="sb-logout-icon">
+                            <LogOut size={15} />
+                        </span>
+                        Sign out
+                    </button>
+                </div>
+
+            </nav>
+        </>
     );
 }
