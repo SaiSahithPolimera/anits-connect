@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, GraduationCap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function RegisterPage() {
@@ -33,7 +33,7 @@ export default function RegisterPage() {
                 graduationYear: form.graduationYear ? parseInt(form.graduationYear) : undefined
             });
             toast.success('Registration successful!');
-            navigate('/dashboard');
+            navigate('/');
         } catch (error) {
             toast.error(error.response?.data?.error || 'Registration failed');
         } finally {
@@ -44,121 +44,142 @@ export default function RegisterPage() {
     const branches = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'CSBS'];
 
     return (
-        <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 py-8">
-            <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute top-1/3 right-1/3 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
-                <div className="absolute bottom-1/3 left-1/3 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl"></div>
-            </div>
-
-            <div className="relative w-full max-w-lg">
-                <div className="bg-gray-900/80 backdrop-blur-xl rounded-2xl border border-gray-800/50 p-8 shadow-2xl">
-                    <div className="text-center mb-6">
-                        <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-4">
-                            <UserPlus className="text-white" size={28} />
-                        </div>
-                        <h1 className="text-2xl font-bold text-white">Create Account</h1>
-                        <p className="text-gray-400 mt-1">Join the Alumni-Student Network</p>
+        <div style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'linear-gradient(135deg, #eff6ff 0%, #f8fafc 50%, #f0f9ff 100%)',
+            padding: 24
+        }}>
+            <div className="animate-scale-in" style={{
+                width: '100%', maxWidth: 480,
+                background: '#fff',
+                borderRadius: 20,
+                boxShadow: '0 20px 60px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)',
+                overflow: 'hidden'
+            }}>
+                {/* Header */}
+                <div style={{
+                    padding: '36px 32px 24px',
+                    textAlign: 'center',
+                    background: 'linear-gradient(135deg, var(--primary), var(--accent))',
+                    color: '#fff'
+                }}>
+                    <div style={{
+                        width: 52, height: 52,
+                        background: 'rgba(255,255,255,0.2)',
+                        borderRadius: 14,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        margin: '0 auto 16px',
+                        backdropFilter: 'blur(10px)'
+                    }}>
+                        <GraduationCap size={28} />
                     </div>
+                    <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Create Account</h1>
+                    <p style={{ fontSize: 14, opacity: 0.85 }}>Join the Alumni-Student Network</p>
+                </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        {/* Role Selection */}
-                        <div className="flex gap-3">
-                            {['student', 'alumni'].map((role) => (
+                {/* Form */}
+                <form onSubmit={handleSubmit} style={{ padding: '28px 32px 16px' }}>
+                    {/* Role Selection */}
+                    <div style={{ marginBottom: 20 }}>
+                        <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 8, color: 'var(--text-secondary)' }}>I am a</label>
+                        <div style={{ display: 'flex', gap: 12 }}>
+                            {[
+                                { value: 'student', label: '🎓 Student', desc: 'Looking for mentors' },
+                                { value: 'alumni', label: '🏢 Alumni', desc: 'Ready to mentor' }
+                            ].map((role) => (
                                 <button
-                                    key={role}
+                                    key={role.value}
                                     type="button"
-                                    onClick={() => setForm({ ...form, role })}
-                                    className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all ${form.role === role
-                                            ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50'
-                                            : 'bg-gray-800/50 text-gray-400 border border-gray-700 hover:border-gray-600'
-                                        }`}
+                                    onClick={() => setForm({ ...form, role: role.value })}
+                                    style={{
+                                        flex: 1,
+                                        padding: '16px 12px',
+                                        borderRadius: 12,
+                                        border: `2px solid ${form.role === role.value ? 'var(--primary)' : 'var(--border)'}`,
+                                        background: form.role === role.value ? 'rgba(59, 130, 246, 0.05)' : '#fff',
+                                        color: form.role === role.value ? 'var(--primary)' : 'var(--text-secondary)',
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        textAlign: 'center'
+                                    }}
                                 >
-                                    {role === 'student' ? '🎓 Student' : '🏢 Alumni'}
+                                    <div style={{ fontSize: 16, marginBottom: 4 }}>{role.label}</div>
+                                    <div style={{ fontSize: 12, fontWeight: 400, opacity: 0.7 }}>{role.desc}</div>
                                 </button>
                             ))}
                         </div>
+                    </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="col-span-2">
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Full Name</label>
-                                <input name="name" value={form.name} onChange={handleChange} required
-                                    className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
-                                    placeholder="Enter your full name" />
-                            </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                        <div>
+                            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-secondary)' }}>Full Name</label>
+                            <input className="input" name="name" value={form.name} onChange={handleChange} required placeholder="Your full name" />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-secondary)' }}>Email</label>
+                            <input className="input" type="email" name="email" value={form.email} onChange={handleChange} required placeholder="your@email.com" />
+                        </div>
+                    </div>
 
-                            <div className="col-span-2">
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
-                                <input name="email" type="email" value={form.email} onChange={handleChange} required
-                                    className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
-                                    placeholder="your@email.com" />
-                            </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                        <div>
+                            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-secondary)' }}>Password</label>
+                            <input className="input" type="password" name="password" value={form.password} onChange={handleChange} required placeholder="••••••••" />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-secondary)' }}>Confirm Password</label>
+                            <input className="input" type="password" name="confirmPassword" value={form.confirmPassword} onChange={handleChange} required placeholder="••••••••" />
+                        </div>
+                    </div>
 
+                    {form.role === 'student' ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                             <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
-                                <input name="password" type="password" value={form.password} onChange={handleChange} required
-                                    className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
-                                    placeholder="••••••••" />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Confirm</label>
-                                <input name="confirmPassword" type="password" value={form.confirmPassword} onChange={handleChange} required
-                                    className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
-                                    placeholder="••••••••" />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-300 mb-1">Branch</label>
-                                <select name="branch" value={form.branch} onChange={handleChange}
-                                    className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-indigo-500 transition-colors">
-                                    <option value="">Select Branch</option>
-                                    {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-secondary)' }}>Branch</label>
+                                <select className="input" name="branch" value={form.branch} onChange={handleChange} required>
+                                    <option value="">Select branch</option>
+                                    {branches.map(branch => <option key={branch} value={branch}>{branch}</option>)}
                                 </select>
                             </div>
-
-                            {form.role === 'student' ? (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-1">Year</label>
-                                    <select name="year" value={form.year} onChange={handleChange}
-                                        className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:border-indigo-500 transition-colors">
-                                        <option value="">Select Year</option>
-                                        {[1, 2, 3, 4].map(y => <option key={y} value={y}>Year {y}</option>)}
-                                    </select>
-                                </div>
-                            ) : (
-                                <>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-1">Graduation Year</label>
-                                        <input name="graduationYear" type="number" value={form.graduationYear} onChange={handleChange}
-                                            className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
-                                            placeholder="2023" />
-                                    </div>
-                                    <div className="col-span-2">
-                                        <label className="block text-sm font-medium text-gray-300 mb-1">Company</label>
-                                        <input name="company" value={form.company} onChange={handleChange}
-                                            className="w-full px-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
-                                            placeholder="Current company" />
-                                    </div>
-                                </>
-                            )}
+                            <div>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-secondary)' }}>Year</label>
+                                <select className="input" name="year" value={form.year} onChange={handleChange} required>
+                                    <option value="">Select year</option>
+                                    {[1, 2, 3, 4].map(year => <option key={year} value={year}>{year}st Year</option>)}
+                                </select>
+                            </div>
                         </div>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-secondary)' }}>Company</label>
+                                <input className="input" name="company" value={form.company} onChange={handleChange} required placeholder="Your company" />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-secondary)' }}>Graduation Year</label>
+                                <input className="input" type="number" name="graduationYear" value={form.graduationYear} onChange={handleChange} required placeholder="2023" />
+                            </div>
+                        </div>
+                    )}
 
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-medium hover:from-indigo-600 hover:to-purple-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                            {loading ? (
-                                <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full"></div>
-                            ) : (
-                                <><UserPlus size={18} /> Create Account</>
-                            )}
-                        </button>
-                    </form>
+                    <button type="submit" className="btn btn-primary btn-lg" disabled={loading}
+                        style={{ width: '100%', fontWeight: 600, fontSize: 15, marginBottom: 16 }}>
+                        {loading ? <span className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} /> : <><UserPlus size={18} /> Create Account</>}
+                    </button>
+                </form>
 
-                    <p className="mt-6 text-center text-gray-400 text-sm">
+                {/* Sign In Link */}
+                <div style={{ padding: '0 32px 28px', textAlign: 'center' }}>
+                    <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
                         Already have an account?{' '}
-                        <Link to="/login" className="text-indigo-400 hover:text-indigo-300 font-medium">Sign In</Link>
+                        <a href="/login" style={{ color: 'var(--primary)', fontWeight: 600, textDecoration: 'none' }}>
+                            Sign In
+                        </a>
                     </p>
                 </div>
             </div>

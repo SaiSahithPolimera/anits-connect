@@ -17,6 +17,7 @@ export default function HomePage() {
     const [interviews, setInterviews] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [showProfileModal, setShowProfileModal] = useState(false);
     const [selectedSenior, setSelectedSenior] = useState(null);
     const [interviewForm, setInterviewForm] = useState({ topic: '', description: '', scheduledAt: '' });
 
@@ -43,6 +44,11 @@ export default function HomePage() {
         setSelectedSenior(senior);
         setInterviewForm({ topic: '', description: '', scheduledAt: '' });
         setShowModal(true);
+    };
+
+    const openProfileModal = (senior) => {
+        setSelectedSenior(senior);
+        setShowProfileModal(true);
     };
 
     const submitInterview = async (e) => {
@@ -107,7 +113,8 @@ export default function HomePage() {
                     <div
                         key={senior._id}
                         className={`card card-interactive animate-fade-in-up stagger-${idx + 1}`}
-                        style={{ padding: 24 }}
+                        style={{ padding: 24, cursor: 'pointer' }}
+                        onClick={() => openProfileModal(senior)}
                     >
                         {/* Senior Header */}
                         <div style={{ display: 'flex', gap: 14, marginBottom: 16 }}>
@@ -157,14 +164,14 @@ export default function HomePage() {
                             <button
                                 className="btn btn-primary btn-sm"
                                 style={{ flex: 1 }}
-                                onClick={() => navigate(`/chat/${senior.userId}`)}
+                                onClick={(e) => { e.stopPropagation(); navigate(`/chat/${senior.userId}`); }}
                             >
                                 <MessageSquare size={15} /> Message
                             </button>
                             <button
                                 className="btn btn-accent btn-sm"
                                 style={{ flex: 1 }}
-                                onClick={() => openInterviewModal(senior)}
+                                onClick={(e) => { e.stopPropagation(); openInterviewModal(senior); }}
                             >
                                 <Video size={15} /> Interview
                             </button>
@@ -281,6 +288,41 @@ export default function HomePage() {
                                 <button type="submit" className="btn btn-accent">Send Request</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {showProfileModal && selectedSenior && (
+                <div className="modal-overlay" onClick={() => setShowProfileModal(false)}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 style={{ fontSize: 16, fontWeight: 600 }}>Alumni Profile</h3>
+                            <button className="btn btn-ghost btn-icon" onClick={() => setShowProfileModal(false)}>
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="modal-body" style={{ display: 'grid', gap: 14 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <img src={selectedSenior.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedSenior.name)}&background=3b82f6&color=fff`}
+                                    className="avatar avatar-lg" alt={selectedSenior.name} />
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{selectedSenior.name}</h4>
+                                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14 }}>{selectedSenior.role} at {selectedSenior.company}</p>
+                                </div>
+                            </div>
+
+                            <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+                                <p><strong>Branch:</strong> {selectedSenior.branch || '—'}</p>
+                                <p><strong>Graduation Year:</strong> {selectedSenior.graduationYear || '—'}</p>
+                                <p><strong>Bio:</strong> {selectedSenior.bio || 'No bio yet'}</p>
+                                {selectedSenior.skills && selectedSenior.skills.length > 0 && (
+                                    <p><strong>Skills:</strong> {selectedSenior.skills.join(', ')}</p>
+                                )}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowProfileModal(false)}>Close</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
