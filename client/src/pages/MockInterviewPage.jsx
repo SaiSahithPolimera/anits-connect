@@ -789,10 +789,7 @@ export default function MockInterviewPage() {
                                                 <>
                                                     <button
                                                         className="mi-btn mi-btn-accept"
-                                                        onClick={() => {
-                                                            const link = prompt('Enter meeting link (optional):');
-                                                            updateStatus(iv._id, 'accepted', link || '');
-                                                        }}
+                                                        onClick={() => updateStatus(iv._id, 'accepted')}
                                                     >
                                                         <CheckCircle size={13} /> Accept
                                                     </button>

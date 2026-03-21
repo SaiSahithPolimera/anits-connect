@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const MEET_LINK = 'https://meet.google.com/rpq-oeit-ces';
+
 
 export default function HomePage() {
     const { user } = useAuth();
@@ -58,8 +58,7 @@ export default function HomePage() {
                 alumniId: selectedSenior.userId,
                 topic: interviewForm.topic,
                 description: interviewForm.description,
-                scheduledAt: interviewForm.scheduledAt,
-                meetingLink: MEET_LINK
+                scheduledAt: interviewForm.scheduledAt
             });
             toast.success('Interview request sent!');
             setShowModal(false);
@@ -71,7 +70,7 @@ export default function HomePage() {
 
     const updateInterview = async (id, status) => {
         try {
-            await api.put(`/interviews/${id}`, { status, meetingLink: MEET_LINK });
+            await api.put(`/interviews/${id}`, { status });
             toast.success(`Interview ${status}`);
             loadData();
         } catch (err) {
@@ -226,8 +225,8 @@ export default function HomePage() {
                                             </>
                                         )}
                                         {/* Join link for accepted */}
-                                        {iv.status === 'accepted' && (
-                                            <a href={iv.meetingLink || MEET_LINK} target="_blank" rel="noreferrer"
+                                        {iv.status === 'accepted' && iv.meetingLink && (
+                                            <a href={iv.meetingLink} target="_blank" rel="noreferrer"
                                                 className="btn btn-primary btn-sm">
                                                 <ExternalLink size={14} /> Join Meet
                                             </a>
@@ -280,7 +279,7 @@ export default function HomePage() {
                                 </div>
 
                                 <div style={{ padding: 12, background: '#eff6ff', borderRadius: 8, fontSize: 13, color: 'var(--primary-dark)' }}>
-                                    📹 Google Meet: <a href={MEET_LINK} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>{MEET_LINK}</a>
+                                    📹 A unique video meeting link will be auto-generated when you send the request.
                                 </div>
                             </div>
                             <div className="modal-footer">

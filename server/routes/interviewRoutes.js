@@ -5,6 +5,7 @@ const Profile = require('../models/Profile');
 const Notification = require('../models/Notification');
 const Engagement = require('../models/Engagement');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { createGoogleMeetLink } = require('../services/googleMeet');
 
 const router = express.Router();
 
@@ -25,6 +26,9 @@ router.post('/', authenticate, requireRole('student'), async (req, res) => {
             scheduledAt: new Date(scheduledAt),
             duration: duration || 30
         });
+        // Auto-generate a unique Google Meet link for this interview
+        const meetLink = await createGoogleMeetLink(topic, scheduledAt, duration || 30);
+        if (meetLink) interview.meetingLink = meetLink;
         await interview.save();
 
         // Notify alumni
@@ -99,6 +103,11 @@ router.put('/:id', authenticate, async (req, res) => {
 
         interview.status = status;
         if (meetingLink) interview.meetingLink = meetingLink;
+        // Auto-generate meeting link if missing (backward compat for old interviews)
+        if (!interview.meetingLink) {
+            const meetLink = await createGoogleMeetLink(interview.topic, interview.scheduledAt, interview.duration);
+            if (meetLink) interview.meetingLink = meetLink;
+        }
         if (rescheduleNote) interview.rescheduleNote = rescheduleNote;
         if (scheduledAt) interview.scheduledAt = new Date(scheduledAt);
         await interview.save();
