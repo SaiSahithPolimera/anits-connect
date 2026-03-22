@@ -61,16 +61,41 @@ router.get('/', authenticate, async (req, res) => {
 
         if (status) filter.status = status;
 
+        // Auto-complete accepted interviews whose time has passed
+        const now = new Date();
+        const overdueInterviews = await Interview.find({
+            status: 'accepted',
+            ...(filter.studentId ? { studentId: filter.studentId } : {}),
+            ...(filter.alumniId ? { alumniId: filter.alumniId } : {})
+        });
+
+        for (const iv of overdueInterviews) {
+            const endTime = new Date(iv.scheduledAt.getTime() + (iv.duration || 30) * 60 * 1000);
+            if (now > endTime) {
+                iv.status = 'completed';
+                await iv.save();
+                // Update engagement scores
+                await Engagement.findOneAndUpdate(
+                    { userId: iv.alumniId },
+                    { $inc: { mockInterviewsConducted: 1, contributionScore: 10 } }
+                );
+                await Engagement.findOneAndUpdate(
+                    { userId: iv.studentId },
+                    { $inc: { interviewsCompleted: 1 } }
+                );
+            }
+        }
+
         const interviews = await Interview.find(filter)
             .sort({ scheduledAt: -1 })
             .lean();
 
-        // Enrich with profiles
+        // Enrich with profiles and feedback
         const enriched = await Promise.all(interviews.map(async (i) => {
             const studentProfile = await Profile.findOne({ userId: i.studentId }).select('name branch year').lean();
             const alumniProfile = await Profile.findOne({ userId: i.alumniId }).select('name company role').lean();
             const feedback = await Feedback.findOne({ interviewId: i._id }).lean();
-            return { ...i, studentProfile, alumniProfile, hasFeedback: !!feedback };
+            return { ...i, studentProfile, alumniProfile, feedback: feedback || null, hasFeedback: !!feedback };
         }));
 
         res.json({ interviews: enriched });
