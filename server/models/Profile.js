@@ -26,6 +26,14 @@ const profileSchema = new mongoose.Schema({
         default: '',
         maxlength: 500
     },
+    resumeUrl: {
+        type: String,
+        default: ''
+    },
+    resumeOriginalName: {
+        type: String,
+        default: ''
+    },
 
     // Student-specific fields
     branch: {

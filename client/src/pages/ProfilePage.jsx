@@ -4,8 +4,11 @@ import toast from 'react-hot-toast';
 import {
     User, Save, Plus, X,
     Briefcase, GraduationCap,
-    Link2, CheckCircle2, ChevronDown
+    Link2, CheckCircle2, ChevronDown,
+    Upload, FileText, Trash2
 } from 'lucide-react';
+import CustomSelect from '../components/ui/CustomSelect';
+import api from '../utils/api';
 
 /* ══════════════════════════════════════════════════════
    TagInput is defined OUTSIDE ProfilePage.
@@ -65,7 +68,59 @@ function TagInput({ label, placeholder, values, newVal, onNewValChange, onAdd, o
 
 /* ── Main page ── */
 export default function ProfilePage() {
-    const { user, profile, updateProfile } = useAuth();
+    const { user, profile, updateProfile, fetchProfile } = useAuth();
+
+    const [uploadingResume, setUploadingResume] = useState(false);
+    const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+
+    const handleResumeUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.size > 2 * 1024 * 1024) {
+            toast.error('File size must be less than 2MB');
+            return;
+        }
+
+        if (file.type !== 'application/pdf') {
+            toast.error('Only PDF files are allowed');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('resume', file);
+
+        setUploadingResume(true);
+        try {
+            await api.post('/profiles/resume', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            toast.success('Resume uploaded successfully!');
+            await fetchProfile();
+        } catch (error) {
+            toast.error(error.response?.data?.error || 'Failed to upload resume');
+        } finally {
+            setUploadingResume(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleDeleteResume = () => {
+        setConfirmDialog({
+            isOpen: true,
+            title: 'Delete Resume',
+            message: 'Are you sure you want to permanently delete your uploaded resume? This cannot be undone.',
+            onConfirm: async () => {
+                try {
+                    await api.delete('/profiles/resume');
+                    toast.success('Resume deleted successfully!');
+                    await fetchProfile();
+                } catch (error) {
+                    toast.error('Failed to delete resume');
+                }
+            }
+        });
+    };
 
     const blankForm = {
         name:                    profile?.name                    || '',
@@ -151,9 +206,11 @@ export default function ProfilePage() {
 
                     <div className="pp-tabs">
                         <div className="pp-tab active">Profile</div>
-                        <div className="pp-tab">
-                            {user?.role === 'alumni' ? 'Alumni Info' : 'Student Info'}
-                        </div>
+                        {user?.role !== 'admin' && (
+                            <div className="pp-tab">
+                                {user?.role === 'alumni' ? 'Alumni Info' : 'Student Info'}
+                            </div>
+                        )}
                     </div>
 
                     {/* Basic Info */}
@@ -175,17 +232,17 @@ export default function ProfilePage() {
                                     onChange={e => set('phone', e.target.value)} />
                             </div>
 
-                            <div className="pp-field">
-                                <label className="pp-label">Branch</label>
-                                <div className="pp-select-wrap">
-                                    <select className="pp-input pp-select" value={form.branch}
-                                        onChange={e => set('branch', e.target.value)}>
-                                        <option value="">Select branch</option>
-                                        {branches.map(b => <option key={b} value={b}>{b}</option>)}
-                                    </select>
-                                    <ChevronDown size={14} className="pp-chevron" />
+                            {user?.role !== 'admin' && (
+                                <div className="pp-field">
+                                    <label className="pp-label">Branch</label>
+                                    <CustomSelect
+                                        value={form.branch}
+                                        onChange={val => set('branch', val)}
+                                        placeholder="Select branch"
+                                        options={branches.map(b => ({ label: b, value: b }))}
+                                    />
                                 </div>
-                            </div>
+                            )}
 
                             <div className="pp-field pp-full">
                                 <label className="pp-label">Bio</label>
@@ -198,6 +255,81 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="pp-divider" />
+
+                    {/* Resume / CV Section */}
+                    {user?.role !== 'admin' && (
+                        <>
+                            <div className="pp-section">
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                                    <div>
+                                        <p className="pp-section-title" style={{ marginBottom: 4 }}>Resume / CV</p>
+                                        <p className="pp-role-section-sub" style={{ margin: 0 }}>Upload your latest resume (PDF, max 2MB)</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="pp-grid">
+                                    <div className="pp-field pp-full">
+                                        {profile?.resumeUrl ? (
+                                            <div style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                padding: 16, background: 'var(--bg-subtle)', borderRadius: 'var(--radius)',
+                                                border: '1px solid var(--border)'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                    <div style={{ width: 40, height: 40, background: 'var(--danger)15', color: 'var(--danger)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <FileText size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <p style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', margin: 0, marginBottom: 4 }}>
+                                                            {profile.resumeOriginalName || 'resume.pdf'}
+                                                        </p>
+                                                        <a href={profile.resumeUrl.startsWith('data:') ? profile.resumeUrl : `http://localhost:3000${profile.resumeUrl}`} download={profile.resumeOriginalName || 'resume.pdf'} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>
+                                                            View / Download Document
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 8 }}>
+                                                    <button 
+                                                        type="button" 
+                                                        className="btn btn-ghost pp-btn-ghost" 
+                                                        style={{ padding: '8px', color: 'var(--danger)', cursor: 'pointer', border: 'none', background: 'transparent' }}
+                                                        onClick={handleDeleteResume}
+                                                        title="Delete Resume"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                    <label className="pp-btn pp-btn-primary" style={{ padding: '8px 16px', cursor: 'pointer', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                        <Upload size={14} />
+                                                        {uploadingResume ? 'Uploading...' : 'Replace'}
+                                                        <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={handleResumeUpload} disabled={uploadingResume} />
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <label style={{
+                                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                                padding: '32px 16px', border: '2px dashed var(--border)', borderRadius: 'var(--radius)',
+                                                background: 'var(--bg-subtle)', cursor: 'pointer', transition: 'all 0.2s ease', gap: 12
+                                            }}>
+                                                <div style={{ width: 48, height: 48, background: 'var(--bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                                                    <Upload size={20} />
+                                                </div>
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <p style={{ fontWeight: 500, color: 'var(--text)', fontSize: 14, margin: '0 0 4px' }}>
+                                                        {uploadingResume ? 'Uploading...' : 'Click to upload your resume'}
+                                                    </p>
+                                                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>PDF files only, up to 2MB</p>
+                                                </div>
+                                                <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={handleResumeUpload} disabled={uploadingResume} />
+                                            </label>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+        
+                            <div className="pp-divider" />
+                        </>
+                    )}
 
                     {/* Student section */}
                     {user?.role === 'student' && (
@@ -366,6 +498,50 @@ export default function ProfilePage() {
 
                 </div>
             </div>
+
+            {/* Custom Confirm Dialog Modal */}
+            {confirmDialog.isOpen && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', zIndex: 1100, padding: 20
+                }}>
+                    <div className="card" style={{ maxWidth: 400, width: '100%', padding: 24, background: 'var(--bg)', borderRadius: 'var(--radius)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
+                        <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>
+                            {confirmDialog.title}
+                        </h3>
+                        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.5 }}>
+                            {confirmDialog.message}
+                        </p>
+                        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+                                className="btn btn-ghost"
+                                style={{ color: 'var(--text-secondary)' }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (confirmDialog.onConfirm) await confirmDialog.onConfirm();
+                                    setConfirmDialog({ ...confirmDialog, isOpen: false });
+                                }}
+                                className="btn btn-primary"
+                                style={{
+                                    background: confirmDialog.title.includes('Delete') ? 'var(--danger)' : 'var(--primary)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '8px 16px',
+                                    borderRadius: 'var(--radius-sm)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Confirm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

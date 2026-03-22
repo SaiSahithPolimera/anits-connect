@@ -12,6 +12,7 @@ export default function AdminDashboard() {
     const [roleFilter, setRoleFilter] = useState('');
     const [selectedUser, setSelectedUser] = useState(null);
     const [showUserModal, setShowUserModal] = useState(false);
+    const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
 
     useEffect(() => { loadData(); }, [tab]);
 
@@ -40,13 +41,34 @@ export default function AdminDashboard() {
         } catch (e) { toast.error('Failed'); }
     };
 
+    const changeRole = async (userId, newRole) => {
+        setConfirmDialog({
+            isOpen: true,
+            title: 'Confirm Role Change',
+            message: `Are you sure you want to change this user's role to ${newRole}?`,
+            onConfirm: async () => {
+                try {
+                    await api.put(`/admin/users/${userId}`, { role: newRole });
+                    toast.success(`Role changed to ${newRole}`);
+                    loadData();
+                } catch (e) { toast.error('Failed to change role'); }
+            }
+        });
+    };
+
     const deleteUser = async (userId) => {
-        if (!confirm('Are you sure you want to delete this user?')) return;
-        try {
-            await api.delete(`/admin/users/${userId}`);
-            toast.success('User deleted');
-            loadData();
-        } catch (e) { toast.error('Failed to delete'); }
+        setConfirmDialog({
+            isOpen: true,
+            title: 'Delete User',
+            message: 'Are you sure you want to delete this user? This action cannot be undone.',
+            onConfirm: async () => {
+                try {
+                    await api.delete(`/admin/users/${userId}`);
+                    toast.success('User deleted');
+                    loadData();
+                } catch (e) { toast.error('Failed to delete'); }
+            }
+        });
     };
 
     const viewUserDetails = (user) => {
@@ -219,8 +241,8 @@ export default function AdminDashboard() {
                                             borderBottom: '1px solid var(--border-light)',
                                             transition: 'background var(--transition)'
                                         }}
-                                        onMouseEnter={(e) => e.target.closest('tr').style.background = 'var(--bg-hover)'}
-                                        onMouseLeave={(e) => e.target.closest('tr').style.background = 'transparent'}
+                                            onMouseEnter={(e) => e.target.closest('tr').style.background = 'var(--bg-hover)'}
+                                            onMouseLeave={(e) => e.target.closest('tr').style.background = 'transparent'}
                                         >
                                             <td style={{ padding: '20px 24px' }}>
                                                 <div
@@ -264,7 +286,7 @@ export default function AdminDashboard() {
                                                     borderRadius: 20,
                                                     fontSize: 12, fontWeight: 500,
                                                     background: u.role === 'admin' ? 'var(--danger)' :
-                                                               u.role === 'alumni' ? 'var(--primary)' : 'var(--success)',
+                                                        u.role === 'alumni' ? 'var(--primary)' : 'var(--success)',
                                                     color: '#fff'
                                                 }}>
                                                     {u.role}
@@ -312,6 +334,26 @@ export default function AdminDashboard() {
                                                     </button>
                                                     {u.role !== 'admin' && (
                                                         <button
+                                                            onClick={() => changeRole(u._id, 'admin')}
+                                                            className="btn btn-ghost btn-sm"
+                                                            style={{ color: 'var(--accent)', padding: '8px' }}
+                                                            title="Make Admin"
+                                                        >
+                                                            <Shield size={16} />
+                                                        </button>
+                                                    )}
+                                                    {u.role === 'admin' && (
+                                                        <button
+                                                            onClick={() => changeRole(u._id, 'alumni')}
+                                                            className="btn btn-ghost btn-sm"
+                                                            style={{ color: 'var(--warning)', padding: '8px' }}
+                                                            title="Remove Admin (Set as Alumni)"
+                                                        >
+                                                            <Shield size={16} />
+                                                        </button>
+                                                    )}
+                                                    {u.role !== 'admin' && (
+                                                        <button
                                                             onClick={() => deleteUser(u._id)}
                                                             className="btn btn-ghost btn-sm"
                                                             style={{ color: 'var(--danger)', padding: '8px' }}
@@ -342,50 +384,163 @@ export default function AdminDashboard() {
 
                 {/* Analytics Tab */}
                 {tab === 'analytics' && analytics && (
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                        gap: 24
-                    }}>
-                        {[
-                            { label: 'Total Users', value: analytics.users.total, color: 'var(--primary)', icon: Users },
-                            { label: 'Students', value: analytics.users.students, color: 'var(--success)', icon: Users },
-                            { label: 'Alumni', value: analytics.users.alumni, color: 'var(--primary)', icon: Users },
-                            { label: 'Admins', value: analytics.users.admins, color: 'var(--danger)', icon: Shield },
-                            { label: 'Recent Signups', value: analytics.users.recentRegistrations, color: 'var(--accent)', icon: Users },
-                            { label: 'Total Interviews', value: analytics.interviews.total, color: 'var(--warning)', icon: Users },
-                            { label: 'Completed', value: analytics.interviews.completed, color: 'var(--success)', icon: CheckCircle },
-                            { label: 'Mentorships', value: analytics.mentorships.total, color: 'var(--primary)', icon: Users },
-                            { label: 'Messages', value: analytics.messages.total, color: 'var(--accent)', icon: Users }
-                        ].map((stat, i) => (
-                            <div key={i} className="card" style={{
-                                padding: 24, textAlign: 'center',
-                                background: `linear-gradient(135deg, ${stat.color}15, ${stat.color}08)`
-                            }}>
-                                <div style={{
-                                    width: 56, height: 56,
-                                    background: stat.color,
-                                    borderRadius: 'var(--radius)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    margin: '0 auto 16px',
-                                    color: '#fff'
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                        {/* 4 Stat Cards */}
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(4, 1fr)',
+                            gap: 24
+                        }}>
+                            {[
+                                { label: 'Total Users', value: analytics.users.total, color: 'var(--primary)', icon: Users },
+                                { label: 'Students', value: analytics.users.students, color: 'var(--success)', icon: GraduationCap },
+                                { label: 'Alumni', value: analytics.users.alumni, color: 'var(--accent)', icon: Award },
+                                { label: 'Total Interviews', value: analytics.interviews.total, color: 'var(--warning)', icon: Calendar }
+                            ].map((stat, i) => (
+                                <div key={i} className="card" style={{
+                                    padding: 24, textAlign: 'center',
+                                    background: `linear-gradient(135deg, ${stat.color}15, ${stat.color}08)`
                                 }}>
-                                    <stat.icon size={24} />
+                                    <div style={{
+                                        width: 56, height: 56,
+                                        background: stat.color,
+                                        borderRadius: 'var(--radius)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        margin: '0 auto 16px',
+                                        color: '#fff'
+                                    }}>
+                                        <stat.icon size={24} />
+                                    </div>
+                                    <p style={{
+                                        fontSize: 32, fontWeight: 700,
+                                        color: stat.color, marginBottom: 8
+                                    }}>
+                                        {stat.value !== undefined ? stat.value : '...'}
+                                    </p>
+                                    <p style={{
+                                        fontSize: 14, color: 'var(--text-secondary)',
+                                        fontWeight: 500
+                                    }}>
+                                        {stat.label}
+                                    </p>
                                 </div>
-                                <p style={{
-                                    fontSize: 32, fontWeight: 700,
-                                    color: stat.color, marginBottom: 8
-                                }}>
-                                    {stat.value}
-                                </p>
-                                <p style={{
-                                    fontSize: 14, color: 'var(--text-secondary)',
-                                    fontWeight: 500
-                                }}>
-                                    {stat.label}
-                                </p>
+                            ))}
+                        </div>
+
+                        {/* Top Chart: User Registrations */}
+                        <div className="card" style={{ padding: 24 }}>
+                            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, color: 'var(--text)' }}>User Registrations (Last 2 Months)</h3>
+                            <div style={{ height: 300 }}>
+                                {(() => {
+                                    const lastMonths = [];
+                                    for (let i = 1; i >= 0; i--) {
+                                        const d = new Date();
+                                        d.setMonth(d.getMonth() - i);
+                                        lastMonths.push({
+                                            year: d.getFullYear(),
+                                            month: d.getMonth() + 1,
+                                            label: d.toLocaleString('default', { month: 'short' }) + ' ' + d.getFullYear()
+                                        });
+                                    }
+                                    const regData = lastMonths.map(m => {
+                                        const found = analytics.registrationsSeries?.find(r => r._id.year === m.year && r._id.month === m.month);
+                                        return found ? found.count : 0;
+                                    });
+                                    
+                                    return (
+                                        <ChartComponent 
+                                            type="line"
+                                            data={{
+                                                labels: lastMonths.map(m => m.label),
+                                                datasets: [{
+                                                    label: 'New Users',
+                                                    data: regData,
+                                                    borderColor: '#3b82f6',
+                                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                                    tension: 0.4,
+                                                    fill: true
+                                                }]
+                                            }}
+                                            options={{ 
+                                                maintainAspectRatio: false, 
+                                                plugins: { legend: { display: false } },
+                                                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                                            }}
+                                        />
+                                    );
+                                })()}
                             </div>
-                        ))}
+                        </div>
+
+                        {/* Middle Row: Donut & Bar */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                            <div className="card" style={{ padding: 24 }}>
+                                <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, color: 'var(--text)' }}>Users by Role</h3>
+                                <div style={{ height: 300, display: 'flex', justifyContent: 'center' }}>
+                                    <ChartComponent 
+                                        type="doughnut"
+                                        data={{
+                                            labels: ['Students', 'Alumni', 'Admins'],
+                                            datasets: [{
+                                                data: [analytics.users.students || 0, analytics.users.alumni || 0, analytics.users.admins || 0],
+                                                backgroundColor: ['#10b981', '#3b82f6', '#ef4444'],
+                                                borderWidth: 0
+                                            }]
+                                        }}
+                                        options={{ maintainAspectRatio: false }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="card" style={{ padding: 24 }}>
+                                <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, color: 'var(--text)' }}>Interview Status</h3>
+                                <div style={{ height: 300 }}>
+                                    <ChartComponent 
+                                        type="bar"
+                                        data={{
+                                            labels: ['Requested', 'Accepted', 'Completed', 'Declined'],
+                                            datasets: [{
+                                                label: 'Interviews',
+                                                data: [
+                                                    analytics.interviews.requested || 0, 
+                                                    analytics.interviews.accepted || 0, 
+                                                    analytics.interviews.completed || 0, 
+                                                    analytics.interviews.declined || 0
+                                                ],
+                                                backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#ef4444'],
+                                                borderRadius: 6
+                                            }]
+                                        }}
+                                        options={{ maintainAspectRatio: false, plugins: { legend: { display: false } } }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Bottom Chart: Mentorship Requests */}
+                        <div className="card" style={{ padding: 24 }}>
+                            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, color: 'var(--text)' }}>Mentorship Requests Breakdown</h3>
+                            <div style={{ height: 300 }}>
+                                <ChartComponent 
+                                    type="bar"
+                                    data={{
+                                        labels: ['Total', 'Pending', 'Accepted', 'Rejected'],
+                                        datasets: [{
+                                            label: 'Mentorship Requests',
+                                            data: [
+                                                analytics.mentorships.total || 0, 
+                                                analytics.mentorships.pending || 0, 
+                                                analytics.mentorships.accepted || 0, 
+                                                analytics.mentorships.rejected || 0
+                                            ],
+                                            backgroundColor: ['#6366f1', '#f59e0b', '#10b981', '#ef4444'],
+                                            borderRadius: 6
+                                        }]
+                                    }}
+                                    options={{ maintainAspectRatio: false, plugins: { legend: { display: false } } }}
+                                />
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -504,7 +659,7 @@ export default function AdminDashboard() {
                                     padding: '6px 12px', borderRadius: 20,
                                     fontSize: 12, fontWeight: 500,
                                     background: selectedUser.role === 'admin' ? 'var(--danger)' :
-                                               selectedUser.role === 'alumni' ? 'var(--primary)' : 'var(--success)',
+                                        selectedUser.role === 'alumni' ? 'var(--primary)' : 'var(--success)',
                                     color: '#fff'
                                 }}>
                                     {selectedUser.role}
@@ -752,6 +907,101 @@ export default function AdminDashboard() {
                     </div>
                 </div>
             )}
+
+            {/* Custom Confirm Dialog Modal */}
+            {confirmDialog.isOpen && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', zIndex: 1100, padding: 20
+                }}>
+                    <div className="card" style={{ maxWidth: 400, width: '100%', padding: 24, background: 'var(--bg)', borderRadius: 'var(--radius)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
+                        <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>
+                            {confirmDialog.title}
+                        </h3>
+                        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.5 }}>
+                            {confirmDialog.message}
+                        </p>
+                        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+                                className="btn btn-ghost"
+                                style={{ color: 'var(--text-secondary)' }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (confirmDialog.onConfirm) await confirmDialog.onConfirm();
+                                    setConfirmDialog({ ...confirmDialog, isOpen: false });
+                                }}
+                                className="btn btn-primary"
+                                style={{
+                                    background: confirmDialog.title.includes('Delete') ? 'var(--danger)' : 'var(--primary)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '8px 16px',
+                                    borderRadius: 'var(--radius-sm)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Confirm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+
+const ChartComponent = ({ type, data, options }) => {
+    const chartRef = React.useRef(null);
+    const chartInstance = React.useRef(null);
+
+    // Deep compare to prevent infinite re-renders since inline objects change reference on every render
+    const dataString = JSON.stringify(data);
+    const optionsString = JSON.stringify(options);
+
+    React.useEffect(() => {
+        let isMounted = true;
+
+        const initChart = () => {
+            if (!isMounted) return;
+            
+            // Wait for Chart.js to load via CDN if it's not immediately available
+            if (!window.Chart) {
+                setTimeout(initChart, 50);
+                return;
+            }
+            
+            if (chartInstance.current) {
+                chartInstance.current.destroy();
+            }
+            
+            if (chartRef.current) {
+                chartInstance.current = new window.Chart(chartRef.current, {
+                    type,
+                    data: JSON.parse(dataString),
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        ...JSON.parse(optionsString || '{}')
+                    }
+                });
+            }
+        };
+
+        initChart();
+
+        return () => {
+            isMounted = false;
+            if (chartInstance.current) {
+                chartInstance.current.destroy();
+                chartInstance.current = null;
+            }
+        };
+    }, [dataString, optionsString, type]);
+
+    return <canvas ref={chartRef} />;
+};

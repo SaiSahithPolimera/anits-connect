@@ -38,8 +38,12 @@ router.get('/users', authenticate, requireRole('admin'), async (req, res) => {
         if (blocked === 'true') filter.isBlocked = true;
         if (blocked === 'false') filter.isBlocked = false;
         if (search) {
+            const matchingProfiles = await Profile.find({ name: { $regex: search, $options: 'i' } }).select('userId');
+            const userIds = matchingProfiles.map(p => p.userId);
+
             filter.$or = [
-                { email: { $regex: search, $options: 'i' } }
+                { email: { $regex: search, $options: 'i' } },
+                { _id: { $in: userIds } }
             ];
         }
 
@@ -149,22 +153,42 @@ router.get('/analytics', authenticate, requireRole('admin'), async (req, res) =>
         const totalUsers = await User.countDocuments();
         const totalStudents = await User.countDocuments({ role: 'student' });
         const totalAlumni = await User.countDocuments({ role: 'alumni' });
-        const blockedUsers = await User.countDocuments({ isBlocked: true });
+        const totalAdmins = await User.countDocuments({ role: 'admin' });
+
         const totalInterviews = await Interview.countDocuments();
+        const requestedInterviews = await Interview.countDocuments({ status: 'requested' });
+        const acceptedInterviews = await Interview.countDocuments({ status: 'accepted' });
         const completedInterviews = await Interview.countDocuments({ status: 'completed' });
+        const declinedInterviews = await Interview.countDocuments({ status: 'declined' });
+
         const totalMentorships = await MentorshipRequest.countDocuments();
+        const pendingMentorships = await MentorshipRequest.countDocuments({ status: 'pending' });
         const acceptedMentorships = await MentorshipRequest.countDocuments({ status: 'accepted' });
+        const rejectedMentorships = await MentorshipRequest.countDocuments({ status: 'rejected' });
+        
         const totalMessages = await DirectMessage.countDocuments();
 
-        // Recent registrations (last 30 days)
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const recentRegistrations = await User.countDocuments({ createdAt: { $gte: thirtyDaysAgo } });
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+        sixMonthsAgo.setDate(1);
+
+        const registrations = await User.aggregate([
+            { $match: { createdAt: { $gte: sixMonthsAgo } } },
+            {
+                $group: {
+                    _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { "_id.year": 1, "_id.month": 1 } }
+        ]);
 
         res.json({
             analytics: {
-                users: { total: totalUsers, students: totalStudents, alumni: totalAlumni, blocked: blockedUsers, recentRegistrations },
-                interviews: { total: totalInterviews, completed: completedInterviews },
-                mentorships: { total: totalMentorships, accepted: acceptedMentorships },
+                users: { total: totalUsers, students: totalStudents, alumni: totalAlumni, admins: totalAdmins },
+                interviews: { total: totalInterviews, requested: requestedInterviews, accepted: acceptedInterviews, completed: completedInterviews, declined: declinedInterviews },
+                mentorships: { total: totalMentorships, pending: pendingMentorships, accepted: acceptedMentorships, rejected: rejectedMentorships },
+                registrationsSeries: registrations,
                 messages: { total: totalMessages }
             }
         });
