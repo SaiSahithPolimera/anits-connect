@@ -7,6 +7,7 @@ import {
     Star, Video, Plus, X, ChevronDown,
     CalendarDays, Users, AlertCircle, RefreshCw
 } from 'lucide-react';
+import CustomSelect from '../components/ui/CustomSelect';
 
 export default function MockInterviewPage() {
     const { user } = useAuth();
@@ -515,22 +516,12 @@ export default function MockInterviewPage() {
                             <form onSubmit={createInterview}>
                                 <div className="mi-form-field">
                                     <label className="mi-form-label">Select Alumni</label>
-                                    <div className="mi-select-wrap">
-                                        <select
-                                            className="mi-select"
-                                            value={form.alumniId}
-                                            onChange={e => setForm({ ...form, alumniId: e.target.value })}
-                                            required
-                                        >
-                                            <option value="">Choose an alumni mentor…</option>
-                                            {alumni.map(a => (
-                                                <option key={a.userId} value={a.userId}>
-                                                    {a.name} — {a.company}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <ChevronDown size={14} />
-                                    </div>
+                                    <CustomSelect
+                                        value={form.alumniId}
+                                        onChange={val => setForm({ ...form, alumniId: val })}
+                                        options={alumni.map(a => ({ label: `${a.name} — ${a.company}`, value: a.userId }))}
+                                        placeholder="Choose an alumni mentor…"
+                                    />
                                 </div>
 
                                 <div className="mi-form-field">
@@ -568,18 +559,11 @@ export default function MockInterviewPage() {
                                     </div>
                                     <div className="mi-form-field">
                                         <label className="mi-form-label">Duration</label>
-                                        <div className="mi-select-wrap">
-                                            <select
-                                                className="mi-select"
-                                                value={form.duration}
-                                                onChange={e => setForm({ ...form, duration: Number(e.target.value) })}
-                                            >
-                                                {[15, 30, 45, 60, 90].map(d => (
-                                                    <option key={d} value={d}>{d} minutes</option>
-                                                ))}
-                                            </select>
-                                            <ChevronDown size={14} />
-                                        </div>
+                                        <CustomSelect
+                                            value={form.duration}
+                                            onChange={val => setForm({ ...form, duration: Number(val) })}
+                                            options={[15, 30, 45, 60, 90].map(d => ({ label: `${d} minutes`, value: d }))}
+                                        />
                                     </div>
                                 </div>
 

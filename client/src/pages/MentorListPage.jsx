@@ -7,6 +7,7 @@ import {
     GraduationCap, CheckCircle, SlidersHorizontal,
     UserCheck, Sparkles
 } from 'lucide-react';
+import CustomSelect from '../components/ui/CustomSelect';
 
 export default function MentorListPage() {
     const { user } = useAuth();
@@ -20,6 +21,11 @@ export default function MentorListPage() {
         loadAlumni();
         loadExistingRequests();
     }, []);
+
+    // Dynamically update search when filters change
+    useEffect(() => {
+        loadAlumni();
+    }, [filters.branch, filters.available]);
 
     const loadAlumni = async () => {
         setLoading(true);
@@ -286,6 +292,7 @@ export default function MentorListPage() {
                     display: grid;
                     grid-template-columns: repeat(3, 1fr);
                     gap: 16px;
+                    align-items: stretch;
                 }
 
                 /* ── Mentor card ── */
@@ -299,6 +306,7 @@ export default function MentorListPage() {
                     gap: 0;
                     transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
                     animation: mlFade 0.35s ease both;
+                    height: 100%;
                 }
                 .ml-mentor-card:hover {
                     border-color: #c7d2fe;
@@ -331,20 +339,24 @@ export default function MentorListPage() {
                     font-weight: 700;
                     color: #1a1d2e;
                     margin: 0 0 3px;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
+                    overflow-wrap: break-word;
+                    word-break: break-word;
+                    line-height: 1.3;
                 }
                 .ml-card-role {
                     font-size: 12.5px;
                     color: #6b7280;
                     margin: 0;
                     display: flex;
-                    align-items: center;
+                    align-items: flex-start;
                     gap: 4px;
-                    white-space: nowrap;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
+                    overflow-wrap: break-word;
+                    word-break: break-word;
+                    line-height: 1.4;
+                }
+                .ml-card-role svg {
+                    flex-shrink: 0;
+                    margin-top: 2px;
                 }
                 .ml-avail-badge {
                     margin-left: auto;
@@ -413,7 +425,7 @@ export default function MentorListPage() {
                 .ml-card-divider {
                     height: 1px;
                     background: #eaecf4;
-                    margin: 0 0 14px;
+                    margin: auto 0 14px;
                 }
 
                 /* action button */
@@ -552,25 +564,23 @@ export default function MentorListPage() {
                                     />
                                 </div>
 
-                                <select
-                                    className="ml-select"
-                                    value={filters.branch}
-                                    onChange={e => setFilters({ ...filters, branch: e.target.value })}
-                                >
-                                    <option value="">All Branches</option>
-                                    {branches.map(b => (
-                                        <option key={b} value={b}>{b}</option>
-                                    ))}
-                                </select>
+                                <div style={{ minWidth: 160 }}>
+                                    <CustomSelect
+                                        value={filters.branch}
+                                        onChange={val => setFilters({ ...filters, branch: val })}
+                                        options={branches.map(b => ({ label: b, value: b }))}
+                                        placeholder="All Branches"
+                                    />
+                                </div>
 
-                                <select
-                                    className="ml-select"
-                                    value={filters.available}
-                                    onChange={e => setFilters({ ...filters, available: e.target.value })}
-                                >
-                                    <option value="true">Available only</option>
-                                    <option value="">All mentors</option>
-                                </select>
+                                <div style={{ minWidth: 160 }}>
+                                    <CustomSelect
+                                        value={filters.available}
+                                        onChange={val => setFilters({ ...filters, available: val })}
+                                        options={[{ label: 'Available only', value: 'true' }]}
+                                        placeholder="All mentors"
+                                    />
+                                </div>
 
                                 <button className="ml-search-btn" onClick={loadAlumni}>
                                     <Search size={14} />

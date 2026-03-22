@@ -6,6 +6,7 @@ import {
     Briefcase, GraduationCap,
     Link2, CheckCircle2, ChevronDown
 } from 'lucide-react';
+import CustomSelect from '../components/ui/CustomSelect';
 
 /* ══════════════════════════════════════════════════════
    TagInput is defined OUTSIDE ProfilePage.
@@ -177,14 +178,12 @@ export default function ProfilePage() {
 
                             <div className="pp-field">
                                 <label className="pp-label">Branch</label>
-                                <div className="pp-select-wrap">
-                                    <select className="pp-input pp-select" value={form.branch}
-                                        onChange={e => set('branch', e.target.value)}>
-                                        <option value="">Select branch</option>
-                                        {branches.map(b => <option key={b} value={b}>{b}</option>)}
-                                    </select>
-                                    <ChevronDown size={14} className="pp-chevron" />
-                                </div>
+                                <CustomSelect
+                                    value={form.branch}
+                                    onChange={val => set('branch', val)}
+                                    placeholder="Select branch"
+                                    options={branches.map(b => ({ label: b, value: b }))}
+                                />
                             </div>
 
                             <div className="pp-field pp-full">
@@ -213,14 +212,12 @@ export default function ProfilePage() {
                             <div className="pp-grid">
                                 <div className="pp-field">
                                     <label className="pp-label">Current Year</label>
-                                    <div className="pp-select-wrap">
-                                        <select className="pp-input pp-select" value={form.year}
-                                            onChange={e => set('year', e.target.value)}>
-                                            <option value="">Select year</option>
-                                            {[1,2,3,4].map(y => <option key={y} value={y}>Year {y}</option>)}
-                                        </select>
-                                        <ChevronDown size={14} className="pp-chevron" />
-                                    </div>
+                                    <CustomSelect
+                                        value={form.year}
+                                        onChange={val => set('year', val)}
+                                        placeholder="Select year"
+                                        options={[1, 2, 3, 4].map(y => ({ label: `Year ${y}`, value: y }))}
+                                    />
                                 </div>
                                 <div className="pp-field">
                                     <label className="pp-label">CGPA</label>

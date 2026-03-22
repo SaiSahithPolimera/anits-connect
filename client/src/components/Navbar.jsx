@@ -21,7 +21,6 @@ export default function Navbar() {
     };
 
     const navItems = [
-        { to: '/',               icon: Users,         label: 'Seniors'        },
         { to: '/mentors',        icon: GraduationCap, label: 'Mentors'        },
         { to: '/mock-interview', icon: CalendarCheck, label: 'Mock Interview' },
         { to: '/notifications',  icon: Bell,          label: 'Notifications'  },

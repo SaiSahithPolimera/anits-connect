@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserPlus, GraduationCap } from 'lucide-react';
 import toast from 'react-hot-toast';
+import CustomSelect from '../components/ui/CustomSelect';
 
 export default function RegisterPage() {
     const [form, setForm] = useState({
@@ -141,17 +142,21 @@ export default function RegisterPage() {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                             <div>
                                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-secondary)' }}>Branch</label>
-                                <select className="input" name="branch" value={form.branch} onChange={handleChange} required>
-                                    <option value="">Select branch</option>
-                                    {branches.map(branch => <option key={branch} value={branch}>{branch}</option>)}
-                                </select>
+                                <CustomSelect 
+                                    value={form.branch} 
+                                    onChange={(val) => setForm({ ...form, branch: val })} 
+                                    options={branches.map(b => ({ label: b, value: b }))} 
+                                    placeholder="Select branch"
+                                />
                             </div>
                             <div>
                                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-secondary)' }}>Year</label>
-                                <select className="input" name="year" value={form.year} onChange={handleChange} required>
-                                    <option value="">Select year</option>
-                                    {[1, 2, 3, 4].map(year => <option key={year} value={year}>{year}st Year</option>)}
-                                </select>
+                                <CustomSelect 
+                                    value={form.year} 
+                                    onChange={(val) => setForm({ ...form, year: val })} 
+                                    options={[1, 2, 3, 4].map(y => ({ label: `${y}${y === 1 ? 'st' : y === 2 ? 'nd' : y === 3 ? 'rd' : 'th'} Year`, value: y }))} 
+                                    placeholder="Select year"
+                                />
                             </div>
                         </div>
                     ) : (

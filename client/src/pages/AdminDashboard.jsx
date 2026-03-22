@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 import { Shield, Users, Upload, BarChart3, UserX, UserCheck, Trash2, Search, Filter, MoreVertical, Eye, Ban, CheckCircle, X, Mail, Phone, Calendar, MapPin, Building2, GraduationCap, Award, ExternalLink, Clock } from 'lucide-react';
+import CustomSelect from '../components/ui/CustomSelect';
 
 export default function AdminDashboard() {
     const [tab, setTab] = useState('users');
@@ -13,7 +14,13 @@ export default function AdminDashboard() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [showUserModal, setShowUserModal] = useState(false);
 
+    // Initial load
     useEffect(() => { loadData(); }, [tab]);
+
+    // Dynamic search filtering
+    useEffect(() => {
+        if (tab === 'users') loadData();
+    }, [search, roleFilter]);
 
     const loadData = async () => {
         setLoading(true);
@@ -158,24 +165,18 @@ export default function AdminDashboard() {
                                     }}
                                 />
                             </div>
-                            <select
-                                value={roleFilter}
-                                onChange={e => { setRoleFilter(e.target.value); }}
-                                style={{
-                                    padding: '12px 16px',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    fontSize: 14,
-                                    background: 'var(--bg-input)',
-                                    color: 'var(--text)',
-                                    minWidth: 120
-                                }}
-                            >
-                                <option value="">All Roles</option>
-                                <option value="student">Students</option>
-                                <option value="alumni">Alumni</option>
-                                <option value="admin">Admins</option>
-                            </select>
+                            <div style={{ minWidth: 160 }}>
+                                <CustomSelect
+                                    value={roleFilter}
+                                    onChange={val => setRoleFilter(val)}
+                                    options={[
+                                        { label: 'Students', value: 'student' },
+                                        { label: 'Alumni', value: 'alumni' },
+                                        { label: 'Admins', value: 'admin' }
+                                    ]}
+                                    placeholder="All Roles"
+                                />
+                            </div>
                             <button
                                 onClick={loadData}
                                 className="btn btn-primary"

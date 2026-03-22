@@ -49,7 +49,7 @@
     width: 36px;
     height: 36px;
     border-radius: 10px;
-    background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -58,7 +58,7 @@
     font-size: 16px;
     color: #fff;
     flex-shrink: 0;
-    box-shadow: 0 3px 10px rgba(13, 148, 136, 0.35);
+    box-shadow: 0 3px 10px rgba(37, 99, 235, 0.35);
 }
 
 .sb-logo-text {
@@ -71,7 +71,7 @@
 
 .sb-logo-text em {
     font-style: normal;
-    color: #0d9488;
+    color: var(--primary);
     font-weight: 600;
 }
 
@@ -80,8 +80,8 @@
     padding: 14px 16px;
     margin: 12px 12px 4px;
     border-radius: 12px;
-    background: #f0faf8;
-    border: 1px solid #ccf2ed;
+    background: var(--primary-50);
+    border: 1px solid var(--primary-100);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -92,7 +92,7 @@
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #0d9488, #0891b2);
+    background: linear-gradient(135deg, var(--primary), var(--accent));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -126,9 +126,9 @@
     font-size: 10px;
     font-weight: 600;
     text-transform: capitalize;
-    background: #ccf2ed;
-    color: #0f766e;
-    border: 1px solid #99e6df;
+    background: var(--primary-100);
+    color: var(--primary-dark);
+    border: 1px solid #bfdbfe;
 }
 
 /* ── Nav section label ── */
@@ -167,7 +167,7 @@
 }
 
 .sb-link:hover {
-    background: #f0faf8;
+    background: var(--primary-50);
     color: #0f1f1c;
 }
 
@@ -185,19 +185,19 @@
 }
 
 .sb-link:hover .sb-link-icon {
-    background: #d9f4f1;
-    color: #0d9488;
+    background: var(--primary-100);
+    color: var(--primary);
 }
 
 .sb-link.active {
-    background: #f0faf8;
-    color: #0d9488;
+    background: var(--primary-50);
+    color: var(--primary);
     font-weight: 600;
 }
 
 .sb-link.active .sb-link-icon {
-    background: #ccf2ed;
-    color: #0d9488;
+    background: var(--primary-100);
+    color: var(--primary);
 }
 
 .sb-link.active::before {
@@ -207,7 +207,7 @@
     top: 6px;
     bottom: 6px;
     width: 3px;
-    background: #0d9488;
+    background: var(--primary);
     border-radius: 0 3px 3px 0;
 }
 

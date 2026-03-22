@@ -16,7 +16,7 @@ router.get('/suggestions', authenticate, requireRole('student'), async (req, res
         }
 
         // Find alumni who are available for mentoring
-        const alumni = await User.find({ role: 'alumni', isBlocked: false }).select('_id');
+        const alumni = await User.find({ role: 'alumni', isBlocked: { $ne: true } }).select('_id');
         const alumniIds = alumni.map(a => a._id);
 
         const alumniProfiles = await Profile.find({
@@ -79,7 +79,7 @@ router.get('/alumni', authenticate, async (req, res) => {
     try {
         const { company, role, branch, skills, available, search, page = 1, limit = 20 } = req.query;
 
-        const alumni = await User.find({ role: 'alumni', isBlocked: false }).select('_id');
+        const alumni = await User.find({ role: 'alumni', isBlocked: { $ne: true } }).select('_id');
         const alumniIds = alumni.map(a => a._id);
 
         const filter = { userId: { $in: alumniIds } };
