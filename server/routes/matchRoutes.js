@@ -104,6 +104,7 @@ router.get('/alumni', authenticate, async (req, res) => {
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const total = await Profile.countDocuments(filter);
         const profiles = await Profile.find(filter)
+            .select('-resumeUrl')
             .sort({ updatedAt: -1 })
             .skip(skip)
             .limit(parseInt(limit))
@@ -115,6 +116,19 @@ router.get('/alumni', authenticate, async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ error: 'Failed to search alumni.' });
+    }
+});
+
+// GET /api/match/alumni/:userId/resume — fetch alumni resume safely
+router.get('/alumni/:userId/resume', authenticate, async (req, res) => {
+    try {
+        const profile = await Profile.findOne({ userId: req.params.userId }).select('resumeUrl resumeOriginalName');
+        if (!profile || !profile.resumeUrl) {
+            return res.status(404).json({ error: 'Resume not found.' });
+        }
+        res.json({ resumeUrl: profile.resumeUrl, resumeOriginalName: profile.resumeOriginalName });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch resume.' });
     }
 });
 

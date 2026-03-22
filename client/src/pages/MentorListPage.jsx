@@ -7,7 +7,7 @@ import {
     Search, Users, Building2, Send,
     GraduationCap, CheckCircle, SlidersHorizontal,
     UserCheck, Sparkles, MessageSquare, Video,
-    Calendar, Clock, ExternalLink, MapPin, X, RefreshCw
+    Calendar, Clock, ExternalLink, MapPin, X, RefreshCw, FileText
 } from 'lucide-react';
 import CustomSelect from '../components/ui/CustomSelect';
 
@@ -26,6 +26,7 @@ export default function MentorListPage() {
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [showRescheduleModal, setShowRescheduleModal] = useState(null);
     const [selectedSenior, setSelectedSenior] = useState(null);
+    const [seniorResume, setSeniorResume] = useState(null);
     const [interviewForm, setInterviewForm] = useState({ topic: '', description: '', scheduledAt: '' });
     const [rescheduleForm, setRescheduleForm] = useState({ scheduledAt: '', rescheduleNote: '' });
 
@@ -93,9 +94,16 @@ export default function MentorListPage() {
         setShowModal(true);
     };
 
-    const openProfileModal = (senior) => {
+    const openProfileModal = async (senior) => {
         setSelectedSenior(senior);
+        setSeniorResume(null);
         setShowProfileModal(true);
+        try {
+            const res = await api.get(`/match/alumni/${senior.userId}/resume`);
+            setSeniorResume(res.data);
+        } catch {
+            // Ignore if no resume exists
+        }
     };
 
     const submitInterview = async (e) => {
@@ -1009,6 +1017,18 @@ export default function MentorListPage() {
                                 <p><strong>Bio:</strong> {selectedSenior.bio || selectedSenior.placementExperience || 'No bio yet'}</p>
                                 {selectedSenior.skills && selectedSenior.skills.length > 0 && (
                                     <p><strong>Skills:</strong> {selectedSenior.skills.join(', ')}</p>
+                                )}
+                                
+                                {seniorResume?.resumeUrl && (
+                                    <div style={{ marginTop: 16 }}>
+                                        <a href={seniorResume.resumeUrl.startsWith('data:') ? seniorResume.resumeUrl : `http://localhost:3000${seniorResume.resumeUrl}`} 
+                                           download={seniorResume.resumeOriginalName || 'resume.pdf'} 
+                                           target="_blank" rel="noopener noreferrer" 
+                                           className="btn btn-primary btn-sm"
+                                           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
+                                            <FileText size={14} /> View / Download Resume
+                                        </a>
+                                    </div>
                                 )}
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
