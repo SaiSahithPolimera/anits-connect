@@ -12,6 +12,8 @@ const connectDB = require('../db');
 
 
 const seedData = async () => {
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
     try {
         await connectDB();
         console.log('Connected to MongoDB');
@@ -25,7 +27,7 @@ const seedData = async () => {
         console.log('Cleared existing data');
 
         // ── Admin ─────────────────────────────────────────────
-        const admin = new User({ email: 'admin@anits.edu.in', password: 'admin123', role: 'admin', isVerified: true });
+        const admin = new User({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD, role: 'admin', isVerified: true });
         await admin.save();
         await new Profile({ userId: admin._id, name: 'Platform Admin' }).save();
         console.log('✓ Admin created');

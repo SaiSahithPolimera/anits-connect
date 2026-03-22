@@ -56,7 +56,7 @@ async function initialize() {
 async function generateEmbeddings() {
     console.log("Generating embeddings (this may take a while)...");
     embeddings = [];
-    const BATCH = 10;
+    const BATCH = 30;
     for (let i = 0; i < placementData.length; i += BATCH) {
         const batch = placementData.slice(i, i + BATCH);
         const results = await Promise.all(batch.map(async (rec) => {
@@ -70,19 +70,45 @@ async function generateEmbeddings() {
         }));
         embeddings.push(...results);
         console.log(`Processed ${Math.min(i + BATCH, placementData.length)}/${placementData.length}`);
-        await new Promise(r => setTimeout(r, 1000));
+        
+        // Write to cache periodically to avoid loss
+        if (i % 150 === 0) await fs.writeJson(CACHE_FILE, embeddings);
+        
+        await new Promise(r => setTimeout(r, 200));
     }
     await fs.writeJson(CACHE_FILE, embeddings);
     console.log("Embeddings cached.");
 }
 
-function formatRecord(rec) {
+function formatRecord(rec, queryKeywords = []) {
     if (rec.type === 'individual' || !rec.type) {
         return `- ${rec.name} (${rec.branch}): Placed in ${rec.company} with ${rec.package} LPA, Batch: ${rec.year}.`;
     }
-    if (rec.type === 'summary') return `- [Summary]: ${rec.content?.substring(0, 400)}`;
-    if (rec.type === 'questions') return `- [Interview Experience]: ${rec.content?.substring(0, 400)}`;
-    return `- ${rec.content?.substring(0, 400)}`;
+    
+    let text = rec.content || '';
+    
+    // Smart Snippet: If we have keywords, try to find them and show context around them
+    if (queryKeywords.length > 0 && text.length > 1000) {
+        const lowerText = text.toLowerCase();
+        let bestIndex = 0;
+        for (const kw of queryKeywords) {
+            const idx = lowerText.indexOf(kw);
+            if (idx !== -1) {
+                bestIndex = idx;
+                break;
+            }
+        }
+        
+        const start = Math.max(0, bestIndex - 500);
+        const end = Math.min(text.length, bestIndex + 1000);
+        text = (start > 0 ? "..." : "") + text.substring(start, end) + (end < text.length ? "..." : "");
+    } else {
+        text = text.substring(0, 1500);
+    }
+    
+    if (rec.type === 'summary') return `- [Summary]: ${text}`;
+    if (rec.type === 'questions') return `- [Interview Experience]: ${text}`;
+    return `- [Doc: ${rec.sourceFile}]: ${text}`;
 }
 
 /**
@@ -97,17 +123,46 @@ async function query(userQuery, seniorProfiles = []) {
             await initialize();
         }
 
-        // 1. Find relevant placement records via embedding similarity
+        // 1. Find relevant placement records via embedding similarity + Keyword Boosting
         let context = '';
         if (embeddings.length > 0) {
             const qResult = await embeddingModel.embedContent(userQuery);
             const qEmb = qResult.embedding.values;
 
-            const scored = placementData.map((rec, idx) => ({
-                rec, score: embeddings[idx] ? cosineSimilarity(qEmb, embeddings[idx]) : -1
-            }));
+            // Extract keywords for simple boosting
+            const keywords = userQuery.toLowerCase().split(/\s+/).filter(k => k.length > 2);
+
+            const scored = placementData.map((rec, idx) => {
+                let embScore = (embeddings[idx] && qEmb) ? cosineSimilarity(qEmb, embeddings[idx]) : 0;
+                let keywordScore = 0;
+
+                // Keyword boosting: significantly increase score if key terms (like names) match
+                if (keywords.length > 0) {
+                    const contentLower = (rec.content || '').toLowerCase();
+                    const nameLower = (rec.name || '').toLowerCase();
+                    const chunkTitleLower = (rec.chunkTitle || '').toLowerCase();
+                    
+                    let matches = 0;
+                    for (const kw of keywords) {
+                        if (contentLower.includes(kw) || nameLower.includes(kw) || chunkTitleLower.includes(kw)) {
+                            matches++;
+                        }
+                    }
+                    if (matches > 0) {
+                        // High weight for keyword matches to overcome missing embeddings or crowded chunks
+                        keywordScore = (matches / keywords.length) * 0.8; 
+                    }
+                }
+
+                return { rec, score: embScore + keywordScore };
+            });
+
             scored.sort((a, b) => b.score - a.score);
-            context = scored.slice(0, 15).map(s => formatRecord(s.rec)).join('\n');
+            context = scored.slice(0, 15).map(s => formatRecord(s.rec, keywords)).join('\n');
+            
+            if (scored.length > 0 && scored[0].score > 0.4) {
+                console.log(`Top match: ${scored[0].rec.name || scored[0].rec.chunkTitle || 'Unnamed'} | Score: ${scored[0].score.toFixed(3)} (Emb: ${(scored[0].score - (scored[0].keywordScore || 0)).toFixed(3)})`);
+            }
         }
 
         // 2. Build senior profile context

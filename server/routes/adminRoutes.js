@@ -3,6 +3,7 @@ const multer = require('multer');
 const XLSX = require('xlsx');
 const path = require('path');
 const fs = require('fs-extra');
+const pdfParse = require('pdf-parse');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Engagement = require('../models/Engagement');
@@ -18,12 +19,12 @@ const upload = multer({
     dest: path.join(__dirname, '../../uploads/'),
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
     fileFilter: (req, file, cb) => {
-        const allowed = ['.csv', '.xlsx', '.xls'];
+        const allowed = ['.csv', '.xlsx', '.xls', '.pdf'];
         const ext = path.extname(file.originalname).toLowerCase();
         if (allowed.includes(ext)) {
             cb(null, true);
         } else {
-            cb(new Error('Only CSV and Excel files are allowed.'));
+            cb(new Error('Only PDFs, CSV and Excel files are allowed.'));
         }
     }
 });
@@ -120,27 +121,114 @@ router.post('/placement-data', authenticate, requireRole('admin'), upload.single
         }
 
         const filePath = req.file.path;
-        const workbook = XLSX.readFile(filePath);
-        const sheetName = workbook.SheetNames[0];
-        const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+        const ext = path.extname(req.file.originalname).toLowerCase();
 
-        // Save to placement data JSON file
-        const dataFile = path.join(__dirname, '../../data/raw_placement_data.json');
-        let existingData = [];
-        if (await fs.pathExists(dataFile)) {
-            existingData = await fs.readJson(dataFile);
+        let totalRecordsImported = 0;
+        let totalRecords = 0;
+
+        if (ext === '.pdf') {
+            const data = await pdfParse(fs.readFileSync(filePath));
+            const text = data.text;
+            
+            // Smarter chunking for PDFs (especially tables)
+            // Split by double newlines first
+            const initialChunks = text.split(/\n\s*\n/).filter(c => c.trim().length > 10);
+            
+            const records = [];
+            initialChunks.forEach((chunk, i) => {
+                const lines = chunk.split('\n').filter(l => l.trim().length > 0);
+                // If a chunk is very long (like a big table), split it further every 15 lines
+                if (lines.length > 20) {
+                    for (let j = 0; j < lines.length; j += 15) {
+                        records.push({
+                            type: 'document',
+                            sourceFile: req.file.originalname,
+                            chunkTitle: `PDF Segment ${i + 1} (Part ${Math.floor(j/15) + 1})`,
+                            content: lines.slice(j, j + 15).join('\n').trim()
+                        });
+                    }
+                } else {
+                    records.push({
+                        type: 'document',
+                        sourceFile: req.file.originalname,
+                        chunkTitle: `PDF Segment ${i + 1}`,
+                        content: chunk.trim()
+                    });
+                }
+            });
+            
+            const ragDataFile = path.join(__dirname, '../../data/processed_placement_data.json');
+            let existingRagData = [];
+            if (await fs.pathExists(ragDataFile)) {
+                existingRagData = await fs.readJson(ragDataFile);
+            }
+            
+            const mergedRag = [...existingRagData, ...records];
+            await fs.writeJson(ragDataFile, mergedRag, { spaces: 2 });
+            
+            totalRecordsImported = records.length;
+            totalRecords = mergedRag.length;
+            
+            setTimeout(() => {
+                try {
+                    require('../ragEngine').initialize().catch(err => console.error("RAG Rebuild Error:", err));
+                } catch (e) { console.error(e) }
+            }, 500);
+        } else {
+            const workbook = XLSX.readFile(filePath);
+            const sheetName = workbook.SheetNames[0];
+            const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+            const dataFile = path.join(__dirname, '../../data/raw_placement_data.json');
+            let existingData = [];
+            if (await fs.pathExists(dataFile)) {
+                existingData = await fs.readJson(dataFile);
+            }
+
+            const merged = [...existingData, ...data];
+            await fs.writeJson(dataFile, merged, { spaces: 2 });
+            
+            // Format for RAG engine
+            const records = data.map((row, i) => {
+                const chunkText = Object.entries(row)
+                    .map(([key, value]) => `${key.trim().replace(/\n/g, ' ')}: ${value}`)
+                    .join(", ");
+                return {
+                    type: 'document',
+                    sourceFile: req.file.originalname,
+                    chunkTitle: `CSV/Excel Row ${i + 1}`,
+                    content: chunkText
+                };
+            });
+            
+            const ragDataFile = path.join(__dirname, '../../data/processed_placement_data.json');
+            let existingRagData = [];
+            if (await fs.pathExists(ragDataFile)) {
+                existingRagData = await fs.readJson(ragDataFile);
+            }
+            
+            const mergedRag = [...existingRagData, ...records];
+            await fs.writeJson(ragDataFile, mergedRag, { spaces: 2 });
+            
+            totalRecordsImported = data.length;
+            totalRecords = merged.length;
+            
+            setTimeout(() => {
+                try {
+                    require('../ragEngine').initialize().catch(err => console.error("RAG Rebuild Error:", err));
+                } catch (e) { console.error(e) }
+            }, 500);
         }
-
-        const merged = [...existingData, ...data];
-        await fs.writeJson(dataFile, merged, { spaces: 2 });
 
         // Cleanup uploaded file
         await fs.remove(filePath);
 
         res.json({
-            message: `Successfully imported ${data.length} records.`,
-            totalRecords: merged.length,
-            importedRecords: data.length
+            message: ext === '.pdf' 
+                ? `Successfully processed PDF (${totalRecordsImported} chunks extracted). RAG Engine is rebuilding in the background.`
+                : `Successfully imported (${totalRecordsImported} records). RAG Engine is rebuilding in the background.`,
+            totalRecords: totalRecords,
+            importedRecords: totalRecordsImported
         });
     } catch (error) {
         res.status(500).json({ error: 'Failed to process file.', details: error.message });

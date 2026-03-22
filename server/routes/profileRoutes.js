@@ -47,7 +47,7 @@ router.put('/me', authenticate, async (req, res) => {
             'name', 'avatar', 'phone', 'bio', 'branch', 'year', 'cgpa',
             'skills', 'targetCompanies', 'careerInterests',
             'company', 'role', 'department', 'graduationYear',
-            'placementExperience', 'linkedinUrl',
+            'placementExperience',
             'isAvailableForMentoring', 'mentorTopics'
         ];
 

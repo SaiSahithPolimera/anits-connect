@@ -568,7 +568,7 @@ export default function AdminDashboard() {
                             color: 'var(--text-secondary)', fontSize: 16,
                             marginBottom: 32, maxWidth: 400, margin: '0 auto 32px'
                         }}>
-                            Upload CSV or Excel files with placement records to update the system
+                            Upload PDFs, CSV or Excel files with placement records to update the system (PDFs sync to RAG Engine)
                         </p>
                         <label style={{
                             display: 'inline-flex', alignItems: 'center', gap: 12,
@@ -585,7 +585,7 @@ export default function AdminDashboard() {
                             Choose File
                             <input
                                 type="file"
-                                accept=".csv,.xlsx,.xls"
+                                accept=".pdf,.csv,.xlsx,.xls"
                                 onChange={handleUpload}
                                 style={{ display: 'none' }}
                             />
@@ -826,25 +826,7 @@ export default function AdminDashboard() {
                                                     </div>
                                                 </div>
                                             )}
-                                            {selectedUser.profile?.linkedinUrl && (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                    <ExternalLink size={16} style={{ color: 'var(--text-muted)' }} />
-                                                    <div>
-                                                        <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>LinkedIn</p>
-                                                        <a
-                                                            href={selectedUser.profile.linkedinUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            style={{
-                                                                fontSize: 14, color: 'var(--primary)',
-                                                                textDecoration: 'none'
-                                                            }}
-                                                        >
-                                                            View Profile
-                                                        </a>
-                                                    </div>
-                                                </div>
-                                            )}
+
                                         </div>
                                     </div>
                                 )}

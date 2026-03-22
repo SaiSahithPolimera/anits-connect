@@ -134,7 +134,6 @@ export default function ProfilePage() {
         department:              profile?.department              || '',
         graduationYear:          profile?.graduationYear          || '',
         placementExperience:     profile?.placementExperience     || '',
-        linkedinUrl:             profile?.linkedinUrl             || '',
         isAvailableForMentoring: profile?.isAvailableForMentoring ?? true,
         skills:                  profile?.skills                  || [],
         targetCompanies:         profile?.targetCompanies         || [],
@@ -420,15 +419,6 @@ export default function ProfilePage() {
                                     <input type="number" className="pp-input" value={form.graduationYear}
                                         placeholder="e.g. 2022"
                                         onChange={e => set('graduationYear', e.target.value)} />
-                                </div>
-                                <div className="pp-field">
-                                    <label className="pp-label">LinkedIn URL</label>
-                                    <div className="pp-input-icon-wrap">
-                                        <span className="pp-input-icon"><Link2 size={14} /></span>
-                                        <input className="pp-input" value={form.linkedinUrl}
-                                            placeholder="linkedin.com/in/yourname"
-                                            onChange={e => set('linkedinUrl', e.target.value)} />
-                                    </div>
                                 </div>
                                 <div className="pp-field pp-full">
                                     <label className="pp-label">Placement Experience</label>

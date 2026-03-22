@@ -89,10 +89,7 @@ const profileSchema = new mongoose.Schema({
         default: '',
         maxlength: 2000
     },
-    linkedinUrl: {
-        type: String,
-        default: ''
-    },
+
 
     // Mentor availability (for alumni)
     isAvailableForMentoring: {
