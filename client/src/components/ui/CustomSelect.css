@@ -1,0 +1,171 @@
+/* ════════════════════════════════════════
+   CUSTOM SELECT BOLD REFINED AESTHETIC
+   ════════════════════════════════════════ */
+
+.cs-wrapper {
+    position: relative;
+    width: 100%;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    user-select: none;
+}
+
+.cs-wrapper.disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* ── Trigger Button ── */
+.cs-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 11px 14px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 14px;
+    color: #1a1d2e;
+    background: #fafbff;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.cs-trigger.empty {
+    color: #9ca3af;
+}
+
+.cs-wrapper:focus-visible .cs-trigger,
+.cs-trigger:hover {
+    border-color: #c7d2fe;
+    background: #ffffff;
+}
+
+.cs-trigger.open {
+    border-color: var(--primary, #4338ca);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(67, 56, 202, 0.08);
+}
+
+.cs-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+}
+
+.cs-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9ca3af;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.cs-trigger.open .cs-icon {
+    transform: rotate(180deg);
+    color: var(--primary, #4338ca);
+}
+
+/* ── Dropdown Menu Menu ── */
+.cs-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: 100%;
+    z-index: 50;
+    
+    /* The Glassy Luxury Look */
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 12px;
+    box-shadow: 
+        0 4px 6px -1px rgba(0, 0, 0, 0.03), 
+        0 10px 15px -3px rgba(0, 0, 0, 0.05),
+        0 20px 40px -10px rgba(15, 23, 42, 0.12);
+        
+    overflow: hidden;
+    
+    /* Animation */
+    transform-origin: top;
+    animation: csMenuIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes csMenuIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.cs-list {
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    max-height: 260px;
+    overflow-y: auto;
+    
+    /* Custom Scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.cs-list::-webkit-scrollbar {
+    width: 5px;
+}
+.cs-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+.cs-list::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 10px;
+}
+
+/* ── Options ── */
+.cs-option {
+    padding: 10px 12px;
+    margin-bottom: 2px;
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+}
+
+.cs-option:last-child {
+    margin-bottom: 0;
+}
+
+.cs-option.is-placeholder {
+    color: #9ca3af;
+    font-style: italic;
+    font-size: 13px;
+}
+
+.cs-option:hover {
+    background: #f3f4f6;
+    color: #111827;
+    transform: translateX(4px);
+}
+
+.cs-option.selected {
+    background: #eef2ff;
+    color: var(--primary, #4338ca);
+    font-weight: 600;
+}
+
+.cs-option.selected:hover {
+    background: #e0e7ff;
+}

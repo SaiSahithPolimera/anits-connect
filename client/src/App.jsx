@@ -7,7 +7,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 import LoginPage      from './pages/LoginPage';
 import RegisterPage   from './pages/RegisterPage';
-import HomePage       from './pages/HomePage';
 import ProfilePage    from './pages/ProfilePage';
 import ChatPage       from './pages/ChatPage';
 import AIPage         from './pages/AIPage';
@@ -15,6 +14,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import LeaderboardPage    from './pages/LeaderboardPage';
 import MentorListPage     from './pages/MentorListPage';
 import MockInterviewPage  from './pages/MockInterviewPage';
+import OpeningsPage       from './pages/OpeningsPage';
 import NotificationsPage  from './pages/NotificationsPage';
 
 function AppRoutes() {
@@ -55,12 +55,13 @@ function AppRoutes() {
             {/* Page content shifts right */}
             <main className="sb-page">
                 <Routes>
-                    <Route path="/login"    element={<Navigate to={user.role === 'admin' ? '/admin' : '/'} />} />
-                    <Route path="/register" element={<Navigate to={user.role === 'admin' ? '/admin' : '/'} />} />
+                    <Route path="/login"    element={<Navigate to={user.role === 'admin' ? '/admin' : '/mentors'} />} />
+                    <Route path="/register" element={<Navigate to={user.role === 'admin' ? '/admin' : '/mentors'} />} />
 
-                    <Route path="/"               element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+                    <Route path="/"               element={<Navigate to="/mentors" />} />
                     <Route path="/mentors"         element={<ProtectedRoute><MentorListPage /></ProtectedRoute>} />
                     <Route path="/mock-interview"  element={<ProtectedRoute><MockInterviewPage /></ProtectedRoute>} />
+                    <Route path="/openings"        element={<ProtectedRoute><OpeningsPage /></ProtectedRoute>} />
                     <Route path="/notifications"   element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                     <Route path="/profile"         element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                     <Route path="/chat/:seniorId?" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
@@ -68,7 +69,7 @@ function AppRoutes() {
                     <Route path="/leaderboard"     element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
                     <Route path="/admin"           element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
 
-                    <Route path="*" element={<Navigate to={user.role === 'admin' ? '/admin' : '/'} />} />
+                    <Route path="*" element={<Navigate to={user.role === 'admin' ? '/admin' : '/mentors'} />} />
                 </Routes>
             </main>
         </div>

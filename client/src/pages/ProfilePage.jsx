@@ -345,14 +345,12 @@ export default function ProfilePage() {
                             <div className="pp-grid">
                                 <div className="pp-field">
                                     <label className="pp-label">Current Year</label>
-                                    <div className="pp-select-wrap">
-                                        <select className="pp-input pp-select" value={form.year}
-                                            onChange={e => set('year', e.target.value)}>
-                                            <option value="">Select year</option>
-                                            {[1,2,3,4].map(y => <option key={y} value={y}>Year {y}</option>)}
-                                        </select>
-                                        <ChevronDown size={14} className="pp-chevron" />
-                                    </div>
+                                    <CustomSelect
+                                        value={form.year}
+                                        onChange={val => set('year', val)}
+                                        placeholder="Select year"
+                                        options={[1, 2, 3, 4].map(y => ({ label: `Year ${y}`, value: y }))}
+                                    />
                                 </div>
                                 <div className="pp-field">
                                     <label className="pp-label">CGPA</label>

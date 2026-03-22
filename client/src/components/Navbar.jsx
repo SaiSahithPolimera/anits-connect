@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     Users, User, MessageSquare, Sparkles,
-    LogOut, Menu, X, Shield, Trophy,
+    LogOut, Menu, X, Shield, Trophy, Briefcase,
     CalendarCheck, Bell, GraduationCap
 } from 'lucide-react';
 import './Navbar.css';
@@ -21,8 +21,8 @@ export default function Navbar() {
     };
 
     const navItems = [
-        { to: '/',               icon: Users,         label: 'Seniors'        },
         { to: '/mentors',        icon: GraduationCap, label: 'Mentors'        },
+        { to: '/openings',       icon: Briefcase,     label: 'Openings'       },
         { to: '/mock-interview', icon: CalendarCheck, label: 'Mock Interview' },
         { to: '/notifications',  icon: Bell,          label: 'Notifications'  },
         { to: '/profile',        icon: User,          label: 'Profile'        },
@@ -40,7 +40,7 @@ export default function Navbar() {
         <>
             {/* ── Mobile top bar ── */}
             <div className="sb-mobile-bar">
-                <NavLink to="/" className="sb-mobile-logo">
+                <NavLink to="/mentors" className="sb-mobile-logo">
                     <div className="sb-logo-mark" style={{ width: 30, height: 30, fontSize: 13 }}>A</div>
                     <span className="sb-logo-text" style={{ fontSize: 14 }}>
                         ANITS <em>Connect</em>
@@ -64,7 +64,7 @@ export default function Navbar() {
             <nav className={`sb-root${open ? ' open' : ''}`}>
 
                 {/* Logo */}
-                <NavLink to="/" className="sb-logo-wrap" onClick={() => setOpen(false)}>
+                <NavLink to="/mentors" className="sb-logo-wrap" onClick={() => setOpen(false)}>
                     <div className="sb-logo-mark">A</div>
                     <span className="sb-logo-text">
                         ANITS <em>Connect</em>
@@ -89,7 +89,7 @@ export default function Navbar() {
                         <NavLink
                             key={item.to}
                             to={item.to}
-                            end={item.to === '/'}
+                            end={item.to === '/mentors'}
                             onClick={() => setOpen(false)}
                             className={({ isActive }) =>
                                 `sb-link${isActive ? ' active' : ''}${item.label === 'Admin' ? ' sb-admin' : ''}`

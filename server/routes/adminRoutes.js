@@ -36,7 +36,7 @@ router.get('/users', authenticate, requireRole('admin'), async (req, res) => {
 
         if (role) filter.role = role;
         if (blocked === 'true') filter.isBlocked = true;
-        if (blocked === 'false') filter.isBlocked = false;
+        if (blocked === 'false') filter.isBlocked = { $ne: true };
         if (search) {
             const matchingProfiles = await Profile.find({ name: { $regex: search, $options: 'i' } }).select('userId');
             const userIds = matchingProfiles.map(p => p.userId);

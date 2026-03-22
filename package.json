@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server/server.js",
-    "seed": "node server/seed/seedData.js",
+    "seed": "node server/seed/seedRealData.js",
     "ingest": "node scripts/ingestData.js",
     "extract": "node scripts/extractData.js",
     "process": "node scripts/processData.js"
