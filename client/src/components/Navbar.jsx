@@ -39,7 +39,7 @@ export default function Navbar() {
         <>
             {/* ── Mobile top bar ── */}
             <div className="sb-mobile-bar">
-                <NavLink to="/" className="sb-mobile-logo">
+                <NavLink to="/mentors" className="sb-mobile-logo">
                     <div className="sb-logo-mark" style={{ width: 30, height: 30, fontSize: 13 }}>A</div>
                     <span className="sb-logo-text" style={{ fontSize: 14 }}>
                         ANITS <em>Connect</em>
@@ -63,7 +63,7 @@ export default function Navbar() {
             <nav className={`sb-root${open ? ' open' : ''}`}>
 
                 {/* Logo */}
-                <NavLink to="/" className="sb-logo-wrap" onClick={() => setOpen(false)}>
+                <NavLink to="/mentors" className="sb-logo-wrap" onClick={() => setOpen(false)}>
                     <div className="sb-logo-mark">A</div>
                     <span className="sb-logo-text">
                         ANITS <em>Connect</em>
@@ -88,7 +88,7 @@ export default function Navbar() {
                         <NavLink
                             key={item.to}
                             to={item.to}
-                            end={item.to === '/'}
+                            end={item.to === '/mentors'}
                             onClick={() => setOpen(false)}
                             className={({ isActive }) =>
                                 `sb-link${isActive ? ' active' : ''}${item.label === 'Admin' ? ' sb-admin' : ''}`
