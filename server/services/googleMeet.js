@@ -50,10 +50,6 @@ async function createGoogleMeetLink(topic, scheduledAt, durationMinutes = 30) {
             e => e.entryPointType === 'video'
         )?.uri;
 
-        if (meetLink) {
-            console.log(`✓ Google Meet link created: ${meetLink}`);
-        }
-
         return meetLink || '';
     } catch (error) {
         console.error('Failed to create Google Meet link:', error.message);
