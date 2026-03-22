@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     Users, User, MessageSquare, Sparkles,
-    LogOut, Menu, X, Shield, Trophy,
+    LogOut, Menu, X, Shield, Trophy, Briefcase,
     CalendarCheck, Bell, GraduationCap
 } from 'lucide-react';
 import './Navbar.css';
@@ -22,6 +22,7 @@ export default function Navbar() {
 
     const navItems = [
         { to: '/mentors',        icon: GraduationCap, label: 'Mentors'        },
+        { to: '/openings',       icon: Briefcase,     label: 'Openings'       },
         { to: '/mock-interview', icon: CalendarCheck, label: 'Mock Interview' },
         { to: '/notifications',  icon: Bell,          label: 'Notifications'  },
         { to: '/profile',        icon: User,          label: 'Profile'        },

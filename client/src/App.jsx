@@ -14,6 +14,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import LeaderboardPage    from './pages/LeaderboardPage';
 import MentorListPage     from './pages/MentorListPage';
 import MockInterviewPage  from './pages/MockInterviewPage';
+import OpeningsPage       from './pages/OpeningsPage';
 import NotificationsPage  from './pages/NotificationsPage';
 
 function AppRoutes() {
@@ -60,6 +61,7 @@ function AppRoutes() {
                     <Route path="/"               element={<Navigate to="/mentors" />} />
                     <Route path="/mentors"         element={<ProtectedRoute><MentorListPage /></ProtectedRoute>} />
                     <Route path="/mock-interview"  element={<ProtectedRoute><MockInterviewPage /></ProtectedRoute>} />
+                    <Route path="/openings"        element={<ProtectedRoute><OpeningsPage /></ProtectedRoute>} />
                     <Route path="/notifications"   element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
                     <Route path="/profile"         element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                     <Route path="/chat/:seniorId?" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
