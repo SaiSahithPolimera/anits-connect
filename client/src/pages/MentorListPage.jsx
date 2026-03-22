@@ -1,25 +1,38 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 import {
     Search, Users, Building2, Send,
     GraduationCap, CheckCircle, SlidersHorizontal,
-    UserCheck, Sparkles
+    UserCheck, Sparkles, MessageSquare, Video,
+    Calendar, Clock, ExternalLink, MapPin, X, RefreshCw
 } from 'lucide-react';
 import CustomSelect from '../components/ui/CustomSelect';
 
 export default function MentorListPage() {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [alumni, setAlumni]           = useState([]);
     const [loading, setLoading]         = useState(true);
     const [search, setSearch]           = useState('');
     const [filters, setFilters]         = useState({ branch: '', company: '', available: 'true' });
     const [requestedIds, setRequestedIds] = useState(new Set());
 
+    // Interview-related state (from HomePage)
+    const [interviews, setInterviews]       = useState([]);
+    const [showModal, setShowModal]         = useState(false);
+    const [showProfileModal, setShowProfileModal] = useState(false);
+    const [showRescheduleModal, setShowRescheduleModal] = useState(null);
+    const [selectedSenior, setSelectedSenior] = useState(null);
+    const [interviewForm, setInterviewForm] = useState({ topic: '', description: '', scheduledAt: '' });
+    const [rescheduleForm, setRescheduleForm] = useState({ scheduledAt: '', rescheduleNote: '' });
+
     useEffect(() => {
         loadAlumni();
         loadExistingRequests();
+        loadInterviews();
     }, []);
 
     // Dynamically update search when filters change
@@ -56,6 +69,13 @@ export default function MentorListPage() {
         } catch { }
     };
 
+    const loadInterviews = async () => {
+        try {
+            const res = await api.get('/interviews');
+            setInterviews(res.data.interviews || []);
+        } catch { }
+    };
+
     const sendRequest = async (alumniUserId) => {
         try {
             await api.post('/match/mentorship/request', { alumniId: alumniUserId });
@@ -66,17 +86,63 @@ export default function MentorListPage() {
         }
     };
 
-    const branches = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'CSBS'];
+    // Interview handlers (from HomePage)
+    const openInterviewModal = (senior) => {
+        setSelectedSenior(senior);
+        setInterviewForm({ topic: '', description: '', scheduledAt: '' });
+        setShowModal(true);
+    };
 
-    /* rotating avatar gradient per index */
-    const avatarGradients = [
-        'linear-gradient(135deg,#4338ca,#7c3aed)',
-        'linear-gradient(135deg,#0891b2,#0284c7)',
-        'linear-gradient(135deg,#059669,#0d9488)',
-        'linear-gradient(135deg,#dc2626,#db2777)',
-        'linear-gradient(135deg,#d97706,#b45309)',
-        'linear-gradient(135deg,#7c3aed,#be185d)',
-    ];
+    const openProfileModal = (senior) => {
+        setSelectedSenior(senior);
+        setShowProfileModal(true);
+    };
+
+    const submitInterview = async (e) => {
+        e.preventDefault();
+        try {
+            await api.post('/interviews', {
+                alumniId: selectedSenior.userId,
+                topic: interviewForm.topic,
+                description: interviewForm.description,
+                scheduledAt: interviewForm.scheduledAt
+            });
+            toast.success('Interview request sent!');
+            setShowModal(false);
+            loadInterviews();
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to send request');
+        }
+    };
+
+    const updateInterview = async (id, status) => {
+        try {
+            await api.put(`/interviews/${id}`, { status });
+            toast.success(`Interview ${status}`);
+            loadInterviews();
+        } catch {
+            toast.error('Failed to update');
+        }
+    };
+
+    const rescheduleInterview = async (e) => {
+        e.preventDefault();
+        try {
+            await api.put(`/interviews/${showRescheduleModal}`, {
+                status: 'rescheduled',
+                scheduledAt: rescheduleForm.scheduledAt,
+                rescheduleNote: rescheduleForm.rescheduleNote
+            });
+            toast.success('Interview rescheduled!');
+            setShowRescheduleModal(null);
+            setRescheduleForm({ scheduledAt: '', rescheduleNote: '' });
+            loadInterviews();
+        } catch {
+            toast.error('Failed to reschedule');
+        }
+    };
+
+    const branches = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'CSBS'];
 
     return (
         <>
@@ -290,7 +356,7 @@ export default function MentorListPage() {
                 /* ── Grid ── */
                 .ml-grid {
                     display: grid;
-                    grid-template-columns: repeat(3, 1fr);
+                    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
                     gap: 16px;
                     align-items: stretch;
                 }
@@ -299,14 +365,15 @@ export default function MentorListPage() {
                 .ml-mentor-card {
                     border: 1.5px solid #eaecf4;
                     border-radius: 14px;
-                    padding: 20px;
-                    background: #fafbff;
+                    padding: 24px;
+                    background: #fff;
                     display: flex;
                     flex-direction: column;
                     gap: 0;
                     transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
                     animation: mlFade 0.35s ease both;
                     height: 100%;
+                    cursor: pointer;
                 }
                 .ml-mentor-card:hover {
                     border-color: #c7d2fe;
@@ -317,46 +384,48 @@ export default function MentorListPage() {
                 /* card top row */
                 .ml-card-top {
                     display: flex;
-                    align-items: flex-start;
-                    gap: 12px;
+                    gap: 14px;
                     margin-bottom: 14px;
                 }
                 .ml-card-avatar {
-                    width: 46px; height: 46px;
+                    width: 56px; height: 56px;
                     border-radius: 50%;
-                    display: flex; align-items: center; justify-content: center;
-                    color: #fff;
-                    font-weight: 700;
-                    font-size: 17px;
-                    font-family: 'Sora', sans-serif;
+                    object-fit: cover;
                     flex-shrink: 0;
-                    border: 2.5px solid rgba(255,255,255,0.85);
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+                    border: 2px solid #e5e7eb;
                 }
                 .ml-card-name {
                     font-family: 'Sora', sans-serif;
-                    font-size: 15px;
-                    font-weight: 700;
+                    font-size: 16px;
+                    font-weight: 600;
                     color: #1a1d2e;
-                    margin: 0 0 3px;
+                    margin: 0 0 2px;
                     overflow-wrap: break-word;
                     word-break: break-word;
                     line-height: 1.3;
                 }
                 .ml-card-role {
-                    font-size: 12.5px;
+                    font-size: 13px;
                     color: #6b7280;
                     margin: 0;
                     display: flex;
-                    align-items: flex-start;
+                    align-items: center;
                     gap: 4px;
-                    overflow-wrap: break-word;
-                    word-break: break-word;
                     line-height: 1.4;
                 }
                 .ml-card-role svg {
                     flex-shrink: 0;
+                }
+                .ml-card-branch {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    color: #9ca3af;
+                    font-size: 12px;
                     margin-top: 2px;
+                }
+                .ml-card-branch svg {
+                    flex-shrink: 0;
                 }
                 .ml-avail-badge {
                     margin-left: auto;
@@ -369,21 +438,12 @@ export default function MentorListPage() {
                     color: #065f46;
                     border: 1px solid #6ee7b7;
                     white-space: nowrap;
-                }
-
-                /* meta row */
-                .ml-card-meta {
-                    display: flex;
-                    align-items: center;
-                    gap: 5px;
-                    font-size: 12px;
-                    color: #9ca3af;
-                    margin-bottom: 10px;
+                    align-self: flex-start;
                 }
 
                 /* bio */
                 .ml-card-bio {
-                    font-size: 12.5px;
+                    font-size: 13px;
                     color: #4b5563;
                     line-height: 1.55;
                     margin-bottom: 12px;
@@ -399,7 +459,6 @@ export default function MentorListPage() {
                     flex-wrap: wrap;
                     gap: 5px;
                     margin-bottom: 16px;
-                    flex: 1;
                 }
                 .ml-skill-tag {
                     padding: 3px 10px;
@@ -421,21 +480,22 @@ export default function MentorListPage() {
                     border: 1px solid #e5e7eb;
                 }
 
-                /* divider inside card */
-                .ml-card-divider {
-                    height: 1px;
-                    background: #eaecf4;
-                    margin: auto 0 14px;
+                /* action buttons row */
+                .ml-card-actions {
+                    margin-top: auto;
+                    padding-top: 14px;
+                    border-top: 1px solid #eaecf4;
+                    display: flex;
+                    gap: 8px;
                 }
 
-                /* action button */
-                .ml-btn-request {
-                    width: 100%;
+                .ml-btn-message {
+                    flex: 1;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    gap: 7px;
-                    padding: 10px;
+                    gap: 6px;
+                    padding: 9px;
                     border-radius: 9px;
                     font-size: 13px;
                     font-weight: 600;
@@ -447,26 +507,73 @@ export default function MentorListPage() {
                     color: #fff;
                     box-shadow: 0 3px 10px rgba(67,56,202,0.22);
                 }
-                .ml-btn-request:hover {
+                .ml-btn-message:hover {
                     background: #3730a3;
                     box-shadow: 0 5px 14px rgba(67,56,202,0.32);
                     transform: translateY(-1px);
                 }
-                .ml-btn-sent {
-                    width: 100%;
+                .ml-btn-interview {
+                    flex: 1;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    gap: 7px;
-                    padding: 10px;
+                    gap: 6px;
+                    padding: 9px;
                     border-radius: 9px;
                     font-size: 13px;
                     font-weight: 600;
                     font-family: 'DM Sans', sans-serif;
-                    background: #f0fdf4;
-                    color: #15803d;
-                    border: 1.5px solid #bbf7d0;
-                    cursor: default;
+                    cursor: pointer;
+                    border: none;
+                    transition: all 0.18s;
+                    background: #6366f1;
+                    color: #fff;
+                    box-shadow: 0 3px 10px rgba(99,102,241,0.22);
+                }
+                .ml-btn-interview:hover {
+                    background: #4f46e5;
+                    box-shadow: 0 5px 14px rgba(99,102,241,0.32);
+                    transform: translateY(-1px);
+                }
+
+                /* ── Interview Requests Section ── */
+                .ml-iv-section-title {
+                    font-size: 18px;
+                    font-weight: 600;
+                    margin: 32px 0 16px;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-family: 'Sora', sans-serif;
+                    color: #1a1d2e;
+                }
+                .ml-iv-card {
+                    background: #fff;
+                    border: 1.5px solid #eaecf4;
+                    border-radius: 14px;
+                    padding: 20px;
+                    margin-bottom: 12px;
+                    animation: mlFade 0.35s ease both;
+                }
+                .ml-iv-card-inner {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    flex-wrap: wrap;
+                    gap: 12px;
+                }
+                .ml-iv-topic {
+                    font-size: 15px;
+                    font-weight: 600;
+                    color: #1a1d2e;
+                    margin: 0;
+                }
+                .ml-iv-meta {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    font-size: 12px;
+                    color: #9ca3af;
                 }
 
                 /* ── Loading / Empty ── */
@@ -510,9 +617,6 @@ export default function MentorListPage() {
                 }
 
                 /* ── Responsive ── */
-                @media (max-width: 900px) {
-                    .ml-grid { grid-template-columns: repeat(2, 1fr); }
-                }
                 @media (max-width: 580px) {
                     .ml-hero-inner        { padding: 0 20px; }
                     .ml-hero-title        { font-size: 20px; }
@@ -618,39 +722,35 @@ export default function MentorListPage() {
                                             key={i}
                                             className="ml-mentor-card"
                                             style={{ animationDelay: `${i * 0.04}s` }}
+                                            onClick={() => openProfileModal(a)}
                                         >
                                             {/* Top: avatar + name + badge */}
                                             <div className="ml-card-top">
-                                                <div
+                                                <img
+                                                    src={a.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(a.name)}&background=3b82f6&color=fff&size=200`}
+                                                    alt={a.name}
                                                     className="ml-card-avatar"
-                                                    style={{
-                                                        background: avatarGradients[i % avatarGradients.length]
-                                                    }}
-                                                >
-                                                    {a.name?.[0]?.toUpperCase() || '?'}
-                                                </div>
+                                                />
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     <p className="ml-card-name">{a.name}</p>
                                                     <p className="ml-card-role">
-                                                        <Building2 size={11} />
-                                                        {a.role || 'Professional'} at {a.company || 'N/A'}
+                                                        <Building2 size={13} />
+                                                        <span>{a.role || 'Professional'} at <strong>{a.company || 'N/A'}</strong></span>
                                                     </p>
+                                                    <div className="ml-card-branch">
+                                                        <MapPin size={12} />
+                                                        {a.branch} · Class of {a.graduationYear || 'N/A'}
+                                                    </div>
                                                 </div>
                                                 {a.isAvailableForMentoring && (
                                                     <span className="ml-avail-badge">Available</span>
                                                 )}
                                             </div>
 
-                                            {/* Meta */}
-                                            <div className="ml-card-meta">
-                                                <GraduationCap size={12} />
-                                                {a.branch} — Class of {a.graduationYear || 'N/A'}
-                                            </div>
-
                                             {/* Bio */}
-                                            {a.placementExperience && (
+                                            {(a.bio || a.placementExperience) && (
                                                 <p className="ml-card-bio">
-                                                    {a.placementExperience}
+                                                    {a.bio || a.placementExperience}
                                                 </p>
                                             )}
 
@@ -670,33 +770,254 @@ export default function MentorListPage() {
                                                 </div>
                                             )}
 
-                                            {/* Action */}
-                                            {user?.role === 'student' && (
-                                                <>
-                                                    <div className="ml-card-divider" />
-                                                    {requestedIds.has(a.userId?.toString()) ? (
-                                                        <button className="ml-btn-sent" disabled>
-                                                            <CheckCircle size={14} />
-                                                            Request Sent
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            className="ml-btn-request"
-                                                            onClick={() => sendRequest(a.userId)}
-                                                        >
-                                                            <Send size={13} />
-                                                            Request Mentorship
-                                                        </button>
-                                                    )}
-                                                </>
-                                            )}
+                                            {/* Action buttons */}
+                                            <div className="ml-card-actions">
+                                                <button
+                                                    className="ml-btn-message"
+                                                    onClick={(e) => { e.stopPropagation(); navigate(`/chat/${a.userId}`); }}
+                                                >
+                                                    <MessageSquare size={14} /> Message
+                                                </button>
+                                                <button
+                                                    className="ml-btn-interview"
+                                                    onClick={(e) => { e.stopPropagation(); openInterviewModal(a); }}
+                                                >
+                                                    <Video size={14} /> Interview
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
                             </>
                         )}
+
+                        {/* ── Interview Requests ── */}
+                        {interviews.length > 0 && (
+                            <>
+                                <h2 className="ml-iv-section-title">
+                                    <Calendar size={20} style={{ color: '#6366f1' }} />
+                                    Interview Requests
+                                </h2>
+
+                                {interviews.map((iv, idx) => (
+                                    <div key={iv._id} className="ml-iv-card" style={{ animationDelay: `${idx * 0.04}s` }}>
+                                        <div className="ml-iv-card-inner">
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                                    <h3 className="ml-iv-topic">{iv.topic}</h3>
+                                                    <span className={`badge badge-${iv.status === 'accepted' ? 'success' : iv.status === 'requested' ? 'warning' : iv.status === 'declined' ? 'danger' : iv.status === 'rescheduled' ? 'warning' : 'neutral'}`}>
+                                                        {iv.status}
+                                                    </span>
+                                                </div>
+                                                <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 8 }}>
+                                                    {user.role === 'student'
+                                                        ? `With ${iv.alumniProfile?.name || 'Alumni'} (${iv.alumniProfile?.company || ''})`
+                                                        : `From ${iv.studentProfile?.name || 'Student'} (${iv.studentProfile?.branch || ''})`
+                                                    }
+                                                </p>
+                                                <div className="ml-iv-meta">
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                        <Calendar size={12} />
+                                                        {new Date(iv.scheduledAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                    </span>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                        <Clock size={12} />
+                                                        {iv.duration || 30} min
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                                {/* Alumni can accept/reschedule/decline pending */}
+                                                {user.role === 'alumni' && (iv.status === 'requested' || iv.status === 'rescheduled') && (
+                                                    <>
+                                                        <button className="btn btn-success btn-sm" onClick={() => updateInterview(iv._id, 'accepted')}>Accept</button>
+                                                        <button className="btn btn-secondary btn-sm" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}
+                                                            onClick={() => { setShowRescheduleModal(iv._id); setRescheduleForm({ scheduledAt: '', rescheduleNote: '' }); }}>
+                                                            Reschedule
+                                                        </button>
+                                                        <button className="btn btn-secondary btn-sm" onClick={() => updateInterview(iv._id, 'declined')}>Decline</button>
+                                                    </>
+                                                )}
+
+                                                {/* Time-aware meeting section */}
+                                                {iv.status === 'accepted' && (() => {
+                                                    const now = new Date();
+                                                    const start = new Date(iv.scheduledAt);
+                                                    const end = new Date(start.getTime() + (iv.duration || 30) * 60 * 1000);
+                                                    const diffMs = start - now;
+                                                    const diffHrs = Math.floor(diffMs / 3600000);
+                                                    const diffMins = Math.floor((diffMs % 3600000) / 60000);
+
+                                                    if (now < start) {
+                                                        return (
+                                                            <span style={{ fontSize: 12, color: '#1e40af', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                <Clock size={12} />
+                                                                {diffHrs > 0 ? `Starts in ${diffHrs}h ${diffMins}m` : diffMins > 0 ? `Starts in ${diffMins}m` : 'Starting soon'}
+                                                            </span>
+                                                        );
+                                                    } else if (now >= start && now <= end) {
+                                                        return (
+                                                            <>
+                                                                <span style={{ fontSize: 12, color: '#065f46', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                                                                    In Progress
+                                                                </span>
+                                                                {iv.meetingLink && (
+                                                                    <a href={iv.meetingLink} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">
+                                                                        <ExternalLink size={14} /> Join Meet
+                                                                    </a>
+                                                                )}
+                                                            </>
+                                                        );
+                                                    } else {
+                                                        return (
+                                                            <span style={{ fontSize: 12, color: '#92400e' }}>Auto-completing...</span>
+                                                        );
+                                                    }
+                                                })()}
+
+                                                {iv.status === 'completed' && (
+                                                    <span style={{ fontSize: 12, color: '#166534', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                        ✅ Completed
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
+                        )}
                     </div>
             </div>
+
+            {/* ── Interview Request Modal ── */}
+            {showModal && (
+                <div className="modal-overlay" onClick={() => setShowModal(false)}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 style={{ fontSize: 16, fontWeight: 600 }}>Request Interview</h3>
+                            <button className="btn btn-ghost btn-icon" onClick={() => setShowModal(false)}>
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <form onSubmit={submitInterview}>
+                            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--bg-input)', borderRadius: 8 }}>
+                                    <img src={selectedSenior?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedSenior?.name)}&background=3b82f6&color=fff`}
+                                        className="avatar avatar-sm" alt="" />
+                                    <div>
+                                        <div style={{ fontWeight: 600, fontSize: 14 }}>{selectedSenior?.name}</div>
+                                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{selectedSenior?.company}</div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Topic *</label>
+                                    <input className="input" required placeholder="e.g., DSA Practice, System Design..."
+                                        value={interviewForm.topic} onChange={e => setInterviewForm(f => ({ ...f, topic: e.target.value }))} />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Description</label>
+                                    <textarea className="input" rows={3} placeholder="What would you like to focus on?"
+                                        value={interviewForm.description} onChange={e => setInterviewForm(f => ({ ...f, description: e.target.value }))} />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Preferred Date & Time *</label>
+                                    <input className="input" type="datetime-local" required
+                                        value={interviewForm.scheduledAt} onChange={e => setInterviewForm(f => ({ ...f, scheduledAt: e.target.value }))} />
+                                </div>
+
+                                <div style={{ padding: 12, background: '#eff6ff', borderRadius: 8, fontSize: 13, color: 'var(--primary-dark)' }}>
+                                    📹 A unique video meeting link will be auto-generated when you send the request.
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
+                                <button type="submit" className="btn btn-accent">Send Request</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Reschedule Modal ── */}
+            {showRescheduleModal && (
+                <div className="modal-overlay" onClick={() => setShowRescheduleModal(null)}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 style={{ fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <RefreshCw size={18} style={{ color: 'var(--accent)' }} />
+                                Reschedule Interview
+                            </h3>
+                            <button className="btn btn-ghost btn-icon" onClick={() => setShowRescheduleModal(null)}>
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <form onSubmit={rescheduleInterview}>
+                            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                <div style={{ padding: 12, background: '#fef3c7', borderRadius: 8, fontSize: 13, color: '#92400e' }}>
+                                    📅 Propose a new date & time that works better for you.
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>New Date & Time *</label>
+                                    <input className="input" type="datetime-local" required
+                                        value={rescheduleForm.scheduledAt}
+                                        onChange={e => setRescheduleForm(f => ({ ...f, scheduledAt: e.target.value }))} />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Reason / Note (optional)</label>
+                                    <textarea className="input" rows={3} placeholder="Let the student know why you're rescheduling..."
+                                        value={rescheduleForm.rescheduleNote}
+                                        onChange={e => setRescheduleForm(f => ({ ...f, rescheduleNote: e.target.value }))} />
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowRescheduleModal(null)}>Cancel</button>
+                                <button type="submit" className="btn btn-accent">Send Reschedule</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Profile Modal ── */}
+            {showProfileModal && selectedSenior && (
+                <div className="modal-overlay" onClick={() => setShowProfileModal(false)}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 style={{ fontSize: 16, fontWeight: 600 }}>Alumni Profile</h3>
+                            <button className="btn btn-ghost btn-icon" onClick={() => setShowProfileModal(false)}>
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="modal-body" style={{ display: 'grid', gap: 14 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <img src={selectedSenior.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedSenior.name)}&background=3b82f6&color=fff`}
+                                    className="avatar avatar-lg" alt={selectedSenior.name} />
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{selectedSenior.name}</h4>
+                                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14 }}>{selectedSenior.role || 'Professional'} at {selectedSenior.company}</p>
+                                </div>
+                            </div>
+
+                            <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+                                <p><strong>Branch:</strong> {selectedSenior.branch || '—'}</p>
+                                <p><strong>Graduation Year:</strong> {selectedSenior.graduationYear || '—'}</p>
+                                <p><strong>Bio:</strong> {selectedSenior.bio || selectedSenior.placementExperience || 'No bio yet'}</p>
+                                {selectedSenior.skills && selectedSenior.skills.length > 0 && (
+                                    <p><strong>Skills:</strong> {selectedSenior.skills.join(', ')}</p>
+                                )}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowProfileModal(false)}>Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }
