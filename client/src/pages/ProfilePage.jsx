@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { User, Mail, Phone, BookOpen, Building, MapPin, Briefcase, Calendar, Award, Code, GraduationCap, Github, Linkedin, ExternalLink, Download, MessageSquare, Video, FileText, ChevronRight, GraduationCap as GradIcon, Users, Edit3, Image as ImageIcon, Camera, Trash2, X, Check, Search, Filter, ArrowRight, Star, Clock, Heart, Shield, HelpCircle, Activity, Layout, Menu, Bell, Settings, LogOut } from 'lucide-react';
+import { User, Briefcase, GraduationCap, FileText,  GraduationCap as GradIcon, Users, Edit3, Image as ImageIcon, Camera, Trash2, X, Upload, Save, CheckCircle2, Plus } from 'lucide-react';
 import CustomSelect from '../components/ui/CustomSelect';
 import api, { API_URL } from '../utils/api';
 
