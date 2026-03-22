@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { Briefcase, Building2, MapPin, Clock, ExternalLink, Calendar, Search, Users, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Briefcase, Building2, MapPin, Clock, ExternalLink, Calendar, Search, Users, Sparkles, Plus, X, Edit, Trash2 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import CustomSelect from '../components/ui/CustomSelect';
+import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
 
 const mockOpenings = [
     {
@@ -97,10 +100,39 @@ const mockOpenings = [
 ];
 
 export default function OpeningsPage() {
+    const { user, profile } = useAuth();
+    const [openings, setOpenings] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [roleFilter, setRoleFilter] = useState('');
 
-    const filteredOpenings = mockOpenings.filter(job => {
+    const [showModal, setShowModal] = useState(false);
+    const [formData, setFormData] = useState({
+        title: '', company: '', location: '', type: 'Full-time', experience: '', link: '', description: '', tags: ''
+    });
+
+    const [isEditing, setIsEditing] = useState(false);
+    const [currentEditingId, setCurrentEditingId] = useState(null);
+
+    useEffect(() => {
+        fetchOpenings();
+    }, []);
+
+    const fetchOpenings = async () => {
+        try {
+            const res = await api.get('/job-openings');
+            setOpenings(res.data);
+        } catch (error) {
+            console.error('Failed to fetch openings:', error);
+            toast.error('Failed to load job openings');
+            // fallback to mock data if API fails to make it robust
+            setOpenings(mockOpenings);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filteredOpenings = openings.filter(job => {
         const matchesSearch = job.title.toLowerCase().includes(search.toLowerCase()) || 
                               job.company.toLowerCase().includes(search.toLowerCase()) ||
                               job.tags.some(t => t.toLowerCase().includes(search.toLowerCase()));
@@ -109,6 +141,85 @@ export default function OpeningsPage() {
         
         return matchesSearch && matchesRole;
     });
+
+    const handleAddSubmit = async (e) => {
+        e.preventDefault();
+        
+        const jobData = {
+            title: formData.title,
+            company: formData.company,
+            location: formData.location,
+            type: formData.type,
+            experience: formData.experience,
+            postedBy: { 
+                name: profile?.name || 'Alumni', 
+                role: profile?.role ? `${profile.role}${profile.company ? ` at ${profile.company}` : ''}` : 'Alumni',
+                userId: user?._id || user?.id
+            },
+            link: formData.link,
+            description: formData.description,
+            tags: formData.tags ? (typeof formData.tags === 'string' ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : formData.tags) : []
+        };
+        
+        try {
+            if (isEditing) {
+                const res = await api.put(`/job-openings/${currentEditingId}`, jobData);
+                setOpenings(openings.map(op => (op._id === currentEditingId || op.id === currentEditingId) ? res.data : op));
+                toast.success('Job opening updated successfully!');
+            } else {
+                const res = await api.post('/job-openings', jobData);
+                setOpenings([res.data, ...openings]);
+                toast.success('Job opening posted successfully!');
+            }
+            closeModal();
+        } catch (error) {
+            console.error('Failed to save opening:', error);
+            toast.error(isEditing ? 'Failed to update job opening' : 'Failed to post job opening');
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this job opening?')) return;
+        try {
+            await api.delete(`/job-openings/${id}`);
+            setOpenings(openings.filter(op => op._id !== id && op.id !== id));
+            toast.success('Job opening deleted successfully!');
+        } catch (error) {
+            console.error('Failed to delete opening:', error);
+            toast.error('Failed to delete job opening');
+        }
+    };
+
+    const openEditModal = (job) => {
+        setIsEditing(true);
+        setCurrentEditingId(job._id || job.id);
+        setFormData({
+            title: job.title,
+            company: job.company,
+            location: job.location,
+            type: job.type,
+            experience: job.experience,
+            link: job.link,
+            description: job.description,
+            tags: job.tags ? job.tags.join(', ') : ''
+        });
+        setShowModal(true);
+    };
+
+    const closeModal = () => {
+        setShowModal(false);
+        setIsEditing(false);
+        setCurrentEditingId(null);
+        setFormData({ title: '', company: '', location: '', type: 'Full-time', experience: '', link: '', description: '', tags: '' });
+    };
+
+    if (loading) {
+        return (
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#eef0f7' }}>
+                <div className="spinner"></div>
+            </div>
+        );
+    }
 
     return (
         <>
@@ -368,6 +479,140 @@ export default function OpeningsPage() {
                     box-shadow: 0 4px 12px rgba(16,185,129,0.3);
                 }
                 
+                /* ── Add & Modal ── */
+                .op-add-btn {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 20px;
+                    background: #10b981;
+                    color: #fff;
+                    border: none;
+                    border-radius: 10px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    white-space: nowrap;
+                }
+                .op-add-btn:hover {
+                    background: #059669;
+                    box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+                }
+                
+                .op-modal-overlay {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(15, 23, 42, 0.6);
+                    backdrop-filter: blur(4px);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                    padding: 20px;
+                    animation: mlFade 0.2s ease;
+                }
+                .op-modal {
+                    background: #fff;
+                    width: 100%;
+                    max-width: 600px;
+                    border-radius: 20px;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                    max-height: 90vh;
+                    display: flex;
+                    flex-direction: column;
+                }
+                .op-modal-header {
+                    padding: 20px 24px;
+                    border-bottom: 1px solid #eaecf4;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                }
+                .op-modal-title {
+                    margin: 0;
+                    font-family: 'Sora', sans-serif;
+                    font-size: 18px;
+                    color: #1a1d2e;
+                }
+                .op-modal-close {
+                    background: #f1f5f9;
+                    border: none;
+                    width: 32px; height: 32px;
+                    border-radius: 50%;
+                    display: flex; align-items: center; justify-content: center;
+                    color: #64748b;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .op-modal-close:hover {
+                    background: #e2e8f0;
+                    color: #0f172a;
+                }
+                .op-modal-body {
+                    padding: 24px;
+                    overflow-y: auto;
+                }
+                .op-form-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 16px;
+                }
+                .op-form-group {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                }
+                .op-form-group.full {
+                    grid-column: 1 / -1;
+                }
+                .op-label {
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: #4b5563;
+                }
+                .op-input, .op-select, .op-textarea {
+                    padding: 10px 14px;
+                    border: 1.5px solid #e5e7eb;
+                    border-radius: 10px;
+                    font-family: 'DM Sans', sans-serif;
+                    font-size: 14px;
+                    color: #1a1d2e;
+                    outline: none;
+                    transition: all 0.2s;
+                    background: #fff;
+                }
+                .op-input:focus, .op-select:focus, .op-textarea:focus {
+                    border-color: #10b981;
+                    box-shadow: 0 0 0 3px rgba(16,185,129,0.1);
+                }
+                .op-textarea {
+                    resize: vertical;
+                    min-height: 80px;
+                }
+                .op-modal-footer {
+                    padding: 20px 24px;
+                    border-top: 1px solid #eaecf4;
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 12px;
+                }
+                .op-btn-outline {
+                    padding: 10px 20px;
+                    background: #fff;
+                    color: #4b5563;
+                    border: 1.5px solid #e5e7eb;
+                    border-radius: 10px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .op-btn-outline:hover {
+                    background: #f9fafb;
+                    color: #1a1d2e;
+                }
+                
             `}</style>
             
             <div className="op-root">
@@ -386,7 +631,7 @@ export default function OpeningsPage() {
                             </div>
                         </div>
                         <div style={{ color: 'white', background: 'rgba(255,255,255,0.15)', padding: '8px 16px', borderRadius: 999, fontSize: 13, fontWeight: 500 }}>
-                            {mockOpenings.length} Active Posts
+                            {openings.length} Active Posts
                         </div>
                     </div>
                 </div>
@@ -404,16 +649,25 @@ export default function OpeningsPage() {
                                 onChange={e => setSearch(e.target.value)}
                             />
                         </div>
-                        <div style={{ minWidth: 180 }}>
-                            <CustomSelect 
-                                value={roleFilter} 
-                                onChange={val => setRoleFilter(val)}
-                                options={[
-                                    { label: 'Full-time', value: 'Full-time' },
-                                    { label: 'Internship', value: 'Internship' }
-                                ]}
-                                placeholder="All Types"
-                            />
+                        <div style={{ minWidth: 200, display: 'flex', gap: '12px', alignItems: 'center' }}>
+                            <div style={{ flex: 1 }}>
+                                <CustomSelect 
+                                    value={roleFilter} 
+                                    onChange={val => setRoleFilter(val)}
+                                    options={[
+                                        { label: 'Full-time', value: 'Full-time' },
+                                        { label: 'Internship', value: 'Internship' },
+                                        { label: 'Part-time', value: 'Part-time' },
+                                        { label: 'Contract', value: 'Contract' }
+                                    ]}
+                                    placeholder="All Types"
+                                />
+                            </div>
+                            {user?.role === 'alumni' && (
+                                <button className="op-add-btn" onClick={() => setShowModal(true)}>
+                                    <Plus size={16} /> Add 
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -424,7 +678,7 @@ export default function OpeningsPage() {
 
                     <div className="op-list">
                         {filteredOpenings.map(job => (
-                            <div key={job.id} className="op-card">
+                            <div key={job._id || job.id} className="op-card">
                                 <div className="op-card-top">
                                     <div>
                                         <h2 className="op-title">{job.title}</h2>
@@ -447,7 +701,7 @@ export default function OpeningsPage() {
                                     <span style={{color: '#d1d5db'}}>|</span>
                                     <span className="op-meta-item"><Briefcase size={14}/> {job.experience}</span>
                                     <span style={{color: '#d1d5db'}}>|</span>
-                                    <span className="op-meta-item"><Clock size={14}/> {job.postedAt}</span>
+                                    <span className="op-meta-item"><Clock size={14}/> {job.postedAt || new Date(job.createdAt).toLocaleDateString()}</span>
                                 </div>
                                 
                                 <p className="op-desc">{job.description}</p>
@@ -464,13 +718,27 @@ export default function OpeningsPage() {
                                             {job.postedBy.name.charAt(0)}
                                         </div>
                                         <div className="op-posted-info">
-                                            <div style={{ color: '#1a1d2e', fontWeight: 600 }}>Posted by {job.postedBy.name}</div>
-                                            <div>{job.postedBy.role}</div>
+                                            <div style={{ color: '#1a1d2e', fontWeight: 600 }}>
+                                                Posted by {(!job.postedBy.name || job.postedBy.name.includes('@')) ? 'Alumni' : job.postedBy.name}
+                                            </div>
+                                            <div>{(!job.postedBy.role || job.postedBy.role === 'undefined at undefined') ? 'Alumni' : job.postedBy.role}</div>
                                         </div>
                                     </div>
-                                    <a href={job.link} target="_blank" rel="noreferrer" className="op-btn">
-                                        Apply externally <ExternalLink size={14} />
-                                    </a>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        {user && ( (job.postedBy?.userId && job.postedBy.userId === (user._id || user.id)) || user.role === 'admin' ) && (
+                                            <>
+                                                <button onClick={() => openEditModal(job)} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '4px', display: 'flex' }} title="Edit">
+                                                    <Edit size={16} />
+                                                </button>
+                                                <button onClick={() => handleDelete(job._id || job.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', display: 'flex', marginRight: '8px' }} title="Delete">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </>
+                                        )}
+                                        <a href={job.link} target="_blank" rel="noreferrer" className="op-btn">
+                                            Apply externally <ExternalLink size={14} />
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -484,6 +752,75 @@ export default function OpeningsPage() {
                         )}
                     </div>
                 </div>
+
+                {/* ── Add/Edit Opening Modal ── */}
+                {showModal && (
+                    <div className="op-modal-overlay" onClick={closeModal}>
+                        <div className="op-modal" onClick={e => e.stopPropagation()}>
+                            <div className="op-modal-header">
+                                <h3 className="op-modal-title">{isEditing ? 'Edit Job Opening' : 'Share a Job Opening'}</h3>
+                                <button type="button" className="op-modal-close" onClick={closeModal}>
+                                    <X size={18} />
+                                </button>
+                            </div>
+                            
+                            <form onSubmit={handleAddSubmit}>
+                                <div className="op-modal-body op-form-grid">
+                                    <div className="op-form-group full">
+                                        <label className="op-label">Job Title</label>
+                                        <input required className="op-input" placeholder="e.g. Software Engineer" 
+                                            value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+                                    </div>
+                                    <div className="op-form-group">
+                                        <label className="op-label">Company</label>
+                                        <input required className="op-input" placeholder="e.g. Google" 
+                                            value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} />
+                                    </div>
+                                    <div className="op-form-group">
+                                        <label className="op-label">Location</label>
+                                        <input required className="op-input" placeholder="e.g. Remote / Bengaluru" 
+                                            value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} />
+                                    </div>
+                                    <div className="op-form-group">
+                                        <label className="op-label">Type</label>
+                                        <select className="op-select" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
+                                            <option value="Full-time">Full-time</option>
+                                            <option value="Internship">Internship</option>
+                                            <option value="Part-time">Part-time</option>
+                                            <option value="Contract">Contract</option>
+                                        </select>
+                                    </div>
+                                    <div className="op-form-group">
+                                        <label className="op-label">Experience Required</label>
+                                        <input required className="op-input" placeholder="e.g. Fresher / 0-1 year" 
+                                            value={formData.experience} onChange={e => setFormData({...formData, experience: e.target.value})} />
+                                    </div>
+                                    <div className="op-form-group full">
+                                        <label className="op-label">Application Link</label>
+                                        <input required type="url" className="op-input" placeholder="https://..." 
+                                            value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} />
+                                    </div>
+                                    <div className="op-form-group full">
+                                        <label className="op-label">Description / Note for Students</label>
+                                        <textarea required className="op-textarea" placeholder="Any details..." 
+                                            value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+                                    </div>
+                                    <div className="op-form-group full">
+                                        <label className="op-label">Keywords / Tags (comma separated)</label>
+                                        <input className="op-input" placeholder="e.g. React, Node.js, Frontend" 
+                                            value={formData.tags} onChange={e => setFormData({...formData, tags: e.target.value})} />
+                                    </div>
+                                </div>
+                                <div className="op-modal-footer">
+                                    <button type="button" className="op-btn-outline" onClick={closeModal}>Cancel</button>
+                                    <button type="submit" className="op-add-btn">
+                                        {isEditing ? <><Edit size={16}/> Save Changes</> : <><Plus size={16}/> Post Role</>}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
             </div>
         </>
     );

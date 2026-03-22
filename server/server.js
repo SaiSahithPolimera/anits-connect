@@ -19,6 +19,7 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const engagementRoutes = require('./routes/engagementRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const ragRoutes = require('./routes/ragRoutes');
+const jobOpeningRoutes = require('./routes/jobOpeningRoutes');
 
 // Import models (needed for existing chat endpoint)
 const Chat = require('./models/Chat');
@@ -50,6 +51,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/engagement', engagementRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/rag', ragRoutes);
+app.use('/api/job-openings', jobOpeningRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
