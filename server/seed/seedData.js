@@ -9,7 +9,7 @@ const DirectMessage = require('../models/DirectMessage');
 const Interview = require('../models/Interview');
 const connectDB = require('../db');
 
-const MEET_LINK = 'https://meet.google.com/rpq-oeit-ces';
+
 
 const seedData = async () => {
     try {
@@ -170,25 +170,27 @@ const seedData = async () => {
         console.log('✓ Sample messages created');
 
         // ── Sample Interviews ────────────────────────────────
-        await new Interview({
+        // Note: meetingLink will be auto-generated via Google Calendar API
+        // when interviews are created through the app. Seed data skips this.
+        const interview1 = new Interview({
             studentId: juniorUsers[1]._id, alumniId: seniorUsers[1]._id,
             topic: 'DSA Interview Practice',
             description: 'Need help with graph algorithms and dynamic programming for Microsoft interviews.',
-            scheduledAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
+            scheduledAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
             duration: 45,
-            status: 'accepted',
-            meetingLink: MEET_LINK
-        }).save();
+            status: 'accepted'
+        });
+        await interview1.save();
 
-        await new Interview({
+        const interview2 = new Interview({
             studentId: juniorUsers[0]._id, alumniId: seniorUsers[0]._id,
             topic: 'Amazon System Design Round',
             description: 'Want to practice system design questions that Amazon typically asks.',
-            scheduledAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week from now
+            scheduledAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             duration: 60,
-            status: 'requested',
-            meetingLink: MEET_LINK
-        }).save();
+            status: 'requested'
+        });
+        await interview2.save();
         console.log('✓ Sample interviews created');
 
         // ── Summary ──────────────────────────────────────────
@@ -199,7 +201,6 @@ const seedData = async () => {
         console.log(`  Admin:   admin@anits.edu.in / admin123`);
         console.log(`  Seniors: kavya.nair@gmail.com / password123`);
         console.log(`  Juniors: student1@anits.edu.in / password123`);
-        console.log(`  Meet:    ${MEET_LINK}`);
 
         process.exit(0);
     } catch (error) {

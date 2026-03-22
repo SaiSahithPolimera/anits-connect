@@ -5,6 +5,7 @@ const Profile = require('../models/Profile');
 const Notification = require('../models/Notification');
 const Engagement = require('../models/Engagement');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { createGoogleMeetLink } = require('../services/googleMeet');
 
 const router = express.Router();
 
@@ -25,6 +26,9 @@ router.post('/', authenticate, requireRole('student'), async (req, res) => {
             scheduledAt: new Date(scheduledAt),
             duration: duration || 30
         });
+        // Auto-generate a unique Google Meet link for this interview
+        const meetLink = await createGoogleMeetLink(topic, scheduledAt, duration || 30);
+        if (meetLink) interview.meetingLink = meetLink;
         await interview.save();
 
         // Notify alumni
@@ -57,16 +61,41 @@ router.get('/', authenticate, async (req, res) => {
 
         if (status) filter.status = status;
 
+        // Auto-complete accepted interviews whose time has passed
+        const now = new Date();
+        const overdueInterviews = await Interview.find({
+            status: 'accepted',
+            ...(filter.studentId ? { studentId: filter.studentId } : {}),
+            ...(filter.alumniId ? { alumniId: filter.alumniId } : {})
+        });
+
+        for (const iv of overdueInterviews) {
+            const endTime = new Date(iv.scheduledAt.getTime() + (iv.duration || 30) * 60 * 1000);
+            if (now > endTime) {
+                iv.status = 'completed';
+                await iv.save();
+                // Update engagement scores
+                await Engagement.findOneAndUpdate(
+                    { userId: iv.alumniId },
+                    { $inc: { mockInterviewsConducted: 1, contributionScore: 10 } }
+                );
+                await Engagement.findOneAndUpdate(
+                    { userId: iv.studentId },
+                    { $inc: { interviewsCompleted: 1 } }
+                );
+            }
+        }
+
         const interviews = await Interview.find(filter)
             .sort({ scheduledAt: -1 })
             .lean();
 
-        // Enrich with profiles
+        // Enrich with profiles and feedback
         const enriched = await Promise.all(interviews.map(async (i) => {
             const studentProfile = await Profile.findOne({ userId: i.studentId }).select('name branch year').lean();
             const alumniProfile = await Profile.findOne({ userId: i.alumniId }).select('name company role').lean();
             const feedback = await Feedback.findOne({ interviewId: i._id }).lean();
-            return { ...i, studentProfile, alumniProfile, hasFeedback: !!feedback };
+            return { ...i, studentProfile, alumniProfile, feedback: feedback || null, hasFeedback: !!feedback };
         }));
 
         res.json({ interviews: enriched });
@@ -99,6 +128,11 @@ router.put('/:id', authenticate, async (req, res) => {
 
         interview.status = status;
         if (meetingLink) interview.meetingLink = meetingLink;
+        // Auto-generate meeting link if missing (backward compat for old interviews)
+        if (!interview.meetingLink) {
+            const meetLink = await createGoogleMeetLink(interview.topic, interview.scheduledAt, interview.duration);
+            if (meetLink) interview.meetingLink = meetLink;
+        }
         if (rescheduleNote) interview.rescheduleNote = rescheduleNote;
         if (scheduledAt) interview.scheduledAt = new Date(scheduledAt);
         await interview.save();

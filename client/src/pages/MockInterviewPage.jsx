@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import {
     CalendarCheck, Clock, CheckCircle, XCircle,
     Star, Video, Plus, X, ChevronDown,
-    CalendarDays, Users, AlertCircle
+    CalendarDays, Users, AlertCircle, RefreshCw
 } from 'lucide-react';
 
 export default function MockInterviewPage() {
@@ -23,6 +23,9 @@ export default function MockInterviewPage() {
         problemSolving: 3, overallRating: 3, notes: ''
     });
     const [alumni, setAlumni] = useState([]);
+    const [showReschedule, setShowReschedule] = useState(null);
+    const [rescheduleForm, setRescheduleForm] = useState({ scheduledAt: '', rescheduleNote: '' });
+    const [expandedFeedback, setExpandedFeedback] = useState(null);
 
     useEffect(() => { loadInterviews(); }, []);
 
@@ -59,6 +62,21 @@ export default function MockInterviewPage() {
             toast.success(`Interview ${status}`);
             loadInterviews();
         } catch { toast.error('Failed to update'); }
+    };
+
+    const rescheduleInterview = async (e) => {
+        e.preventDefault();
+        try {
+            await api.put(`/interviews/${showReschedule}`, {
+                status: 'rescheduled',
+                scheduledAt: rescheduleForm.scheduledAt,
+                rescheduleNote: rescheduleForm.rescheduleNote
+            });
+            toast.success('Interview rescheduled!');
+            setShowReschedule(null);
+            setRescheduleForm({ scheduledAt: '', rescheduleNote: '' });
+            loadInterviews();
+        } catch { toast.error('Failed to reschedule'); }
     };
 
     const submitFeedback = async (interviewId) => {
@@ -463,6 +481,16 @@ export default function MockInterviewPage() {
                 }
                 .mi-divider { height:1px; background:#eaecf4; margin:16px 0; }
 
+                /* reschedule button */
+                .mi-btn-reschedule { background:#ffedd5; color:#9a3412; border:1px solid #fdba74; }
+                .mi-btn-reschedule:hover { background:#fed7aa; }
+                .mi-reschedule-note {
+                    margin-top:8px; padding:10px 14px;
+                    background:#fffbeb; border-radius:8px;
+                    border:1px solid #fde68a;
+                    font-size:12.5px; color:#92400e; line-height:1.5;
+                }
+
                 /* ── Responsive ── */
                 @media (max-width:700px) {
                     .mi-stats         { grid-template-columns:1fr; margin-top:-16px; padding:0 16px; }
@@ -772,29 +800,112 @@ export default function MockInterviewPage() {
                                             <p className="mi-card-desc">{iv.description}</p>
                                         )}
 
-                                        {iv.meetingLink && (
-                                            <a
-                                                href={iv.meetingLink}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="mi-meeting-link"
-                                            >
-                                                <Video size={13} />
-                                                Join Meeting
-                                            </a>
+                                        {/* ── Time-aware meeting section ── */}
+                                        {iv.status === 'accepted' && (() => {
+                                            const now = new Date();
+                                            const start = new Date(iv.scheduledAt);
+                                            const end = new Date(start.getTime() + (iv.duration || 30) * 60 * 1000);
+                                            const diffMs = start - now;
+                                            const diffHrs = Math.floor(diffMs / 3600000);
+                                            const diffMins = Math.floor((diffMs % 3600000) / 60000);
+
+                                            if (now < start) {
+                                                // BEFORE meeting
+                                                return (
+                                                    <div style={{
+                                                        padding: '10px 14px', borderRadius: 8,
+                                                        background: '#eff6ff', border: '1px solid #bfdbfe',
+                                                        fontSize: 12.5, color: '#1e40af', marginBottom: 8,
+                                                        display: 'flex', alignItems: 'center', gap: 6
+                                                    }}>
+                                                        <Clock size={13} />
+                                                        Meeting starts {diffHrs > 0 ? `in ${diffHrs}h ${diffMins}m` : diffMins > 0 ? `in ${diffMins} minutes` : 'soon'}
+                                                        {' · '}
+                                                        {start.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                );
+                                            } else if (now >= start && now <= end) {
+                                                // DURING meeting
+                                                return (
+                                                    <>
+                                                        <div style={{
+                                                            padding: '10px 14px', borderRadius: 8,
+                                                            background: '#d1fae5', border: '1px solid #6ee7b7',
+                                                            fontSize: 12.5, color: '#065f46', marginBottom: 8,
+                                                            display: 'flex', alignItems: 'center', gap: 6
+                                                        }}>
+                                                            <span style={{
+                                                                width: 8, height: 8, borderRadius: '50%',
+                                                                background: '#10b981', display: 'inline-block',
+                                                                animation: 'pulse 1.5s infinite'
+                                                            }} />
+                                                            Meeting in progress
+                                                        </div>
+                                                        {iv.meetingLink && (
+                                                            <a href={iv.meetingLink} target="_blank" rel="noreferrer"
+                                                                className="mi-meeting-link">
+                                                                <Video size={13} /> Join Meeting
+                                                            </a>
+                                                        )}
+                                                    </>
+                                                );
+                                            } else {
+                                                // AFTER meeting (auto-complete hasn't triggered yet)
+                                                return (
+                                                    <div style={{
+                                                        padding: '10px 14px', borderRadius: 8,
+                                                        background: '#fef3c7', border: '1px solid #fde68a',
+                                                        fontSize: 12.5, color: '#92400e', marginBottom: 8,
+                                                        display: 'flex', alignItems: 'center', gap: 6
+                                                    }}>
+                                                        <CheckCircle size={13} />
+                                                        Meeting time has ended. It will be auto-completed shortly.
+                                                    </div>
+                                                );
+                                            }
+                                        })()}
+
+                                        {/* Completed interview message */}
+                                        {iv.status === 'completed' && (
+                                            <div style={{
+                                                padding: '10px 14px', borderRadius: 8,
+                                                background: '#f0fdf4', border: '1px solid #bbf7d0',
+                                                fontSize: 12.5, color: '#166534', marginBottom: 8,
+                                                display: 'flex', alignItems: 'center', gap: 6
+                                            }}>
+                                                <CheckCircle size={13} />
+                                                Interview completed{!iv.hasFeedback && user?.role === 'alumni' ? ' — please provide feedback below.' : '.'}
+                                            </div>
+                                        )}
+                                        {/* Show a message for declined interviews */}
+                                        {iv.status === 'declined' && (
+                                            <div style={{
+                                                padding: '10px 14px', borderRadius: 8,
+                                                background: '#fef2f2', border: '1px solid #fecaca',
+                                                fontSize: 12.5, color: '#991b1b', marginBottom: 8,
+                                                display: 'flex', alignItems: 'center', gap: 6
+                                            }}>
+                                                <XCircle size={13} />
+                                                {user?.role === 'alumni'
+                                                    ? 'You declined this interview request.'
+                                                    : 'This interview was declined. You can request a new one with a different time.'}
+                                            </div>
                                         )}
 
                                         <div className="mi-actions">
-                                            {user?.role === 'alumni' && iv.status === 'requested' && (
+                                            {user?.role === 'alumni' && (iv.status === 'requested' || iv.status === 'rescheduled') && (
                                                 <>
                                                     <button
                                                         className="mi-btn mi-btn-accept"
-                                                        onClick={() => {
-                                                            const link = prompt('Enter meeting link (optional):');
-                                                            updateStatus(iv._id, 'accepted', link || '');
-                                                        }}
+                                                        onClick={() => updateStatus(iv._id, 'accepted')}
                                                     >
                                                         <CheckCircle size={13} /> Accept
+                                                    </button>
+                                                    <button
+                                                        className="mi-btn mi-btn-reschedule"
+                                                        onClick={() => { setShowReschedule(iv._id); setRescheduleForm({ scheduledAt: '', rescheduleNote: '' }); }}
+                                                    >
+                                                        <RefreshCw size={13} /> Reschedule
                                                     </button>
                                                     <button
                                                         className="mi-btn mi-btn-decline"
@@ -803,14 +914,6 @@ export default function MockInterviewPage() {
                                                         <XCircle size={13} /> Decline
                                                     </button>
                                                 </>
-                                            )}
-                                            {iv.status === 'accepted' && (
-                                                <button
-                                                    className="mi-btn mi-btn-complete"
-                                                    onClick={() => updateStatus(iv._id, 'completed')}
-                                                >
-                                                    <CheckCircle size={13} /> Mark Complete
-                                                </button>
                                             )}
                                             {user?.role === 'alumni' && iv.status === 'completed' && !iv.hasFeedback && (
                                                 <button
@@ -821,32 +924,124 @@ export default function MockInterviewPage() {
                                                 </button>
                                             )}
                                         </div>
-
-                                        {/* Show existing feedback if available */}
                                         {iv.feedback && (
-                                            <div className="mi-feedback-box">
-                                                <p className="mi-feedback-title">Feedback received</p>
-                                                {feedbackFields.map(({ key, label }) => (
-                                                    <div className="mi-feedback-row" key={key}>
-                                                        <span className="mi-feedback-label">{label}</span>
-                                                        <div className="mi-stars">
-                                                            {[1,2,3,4,5].map(n => (
-                                                                <span
-                                                                    key={n}
-                                                                    className={`mi-star${iv.feedback[key] >= n ? ' filled' : ''}`}
-                                                                >★</span>
+                                            <div style={{ marginTop: 12 }}>
+                                                {/* Toggle button */}
+                                                <button
+                                                    onClick={() => setExpandedFeedback(expandedFeedback === iv._id ? null : iv._id)}
+                                                    style={{
+                                                        width: '100%', padding: '10px 16px', borderRadius: 10,
+                                                        background: 'linear-gradient(135deg, #f0f9ff 0%, #f8fafc 100%)',
+                                                        border: '1px solid #e0e7ff', cursor: 'pointer',
+                                                        display: 'flex', alignItems: 'center', gap: 8,
+                                                        transition: 'all 0.2s ease'
+                                                    }}
+                                                >
+                                                    <Star size={14} style={{ color: '#f59e0b' }} />
+                                                    <span style={{ fontWeight: 600, fontSize: 13, color: '#1e293b' }}>View Feedback</span>
+                                                    <span style={{
+                                                        marginLeft: 'auto', fontSize: 14, fontWeight: 700,
+                                                        color: iv.feedback.overallRating >= 4 ? '#059669' : iv.feedback.overallRating >= 3 ? '#d97706' : '#dc2626'
+                                                    }}>
+                                                        {iv.feedback.overallRating}/5 ⭐
+                                                    </span>
+                                                    <ChevronDown size={14} style={{
+                                                        color: '#64748b',
+                                                        transform: expandedFeedback === iv._id ? 'rotate(180deg)' : 'rotate(0)',
+                                                        transition: 'transform 0.2s ease'
+                                                    }} />
+                                                </button>
+
+                                                {/* Expandable content */}
+                                                {expandedFeedback === iv._id && (
+                                                    <div style={{
+                                                        padding: 20, borderRadius: '0 0 12px 12px',
+                                                        background: 'linear-gradient(135deg, #f0f9ff 0%, #f8fafc 100%)',
+                                                        border: '1px solid #e0e7ff', borderTop: 'none',
+                                                        animation: 'fadeIn 0.2s ease'
+                                                    }}>
+                                                        {/* Rating bars */}
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                                                            {feedbackFields.filter(f => f.key !== 'overallRating').map(({ key, label }) => (
+                                                                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                                    <span style={{ fontSize: 12, color: '#64748b', width: 110, flexShrink: 0 }}>{label}</span>
+                                                                    <div style={{
+                                                                        flex: 1, height: 8, background: '#e2e8f0',
+                                                                        borderRadius: 4, overflow: 'hidden'
+                                                                    }}>
+                                                                        <div style={{
+                                                                            height: '100%', borderRadius: 4,
+                                                                            width: `${(iv.feedback[key] / 5) * 100}%`,
+                                                                            background: iv.feedback[key] >= 4 ? 'linear-gradient(90deg, #34d399, #059669)' :
+                                                                                       iv.feedback[key] >= 3 ? 'linear-gradient(90deg, #fbbf24, #d97706)' :
+                                                                                       'linear-gradient(90deg, #f87171, #dc2626)',
+                                                                            transition: 'width 0.6s ease'
+                                                                        }} />
+                                                                    </div>
+                                                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#475569', width: 20, textAlign: 'right' }}>
+                                                                        {iv.feedback[key]}
+                                                                    </span>
+                                                                </div>
                                                             ))}
                                                         </div>
+
+                                                        {/* Strengths */}
+                                                        {iv.feedback.strengths && iv.feedback.strengths.length > 0 && (
+                                                            <div style={{ marginBottom: 12 }}>
+                                                                <p style={{ fontSize: 11, fontWeight: 600, color: '#059669', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                                                                    💪 Strengths
+                                                                </p>
+                                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                                    {iv.feedback.strengths.map((s, idx) => (
+                                                                        <span key={idx} style={{
+                                                                            padding: '4px 10px', borderRadius: 20,
+                                                                            background: '#d1fae5', color: '#065f46',
+                                                                            fontSize: 11.5, fontWeight: 500
+                                                                        }}>{s}</span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Improvements */}
+                                                        {iv.feedback.improvements && iv.feedback.improvements.length > 0 && (
+                                                            <div style={{ marginBottom: 12 }}>
+                                                                <p style={{ fontSize: 11, fontWeight: 600, color: '#d97706', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                                                                    📈 Areas to Improve
+                                                                </p>
+                                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                                    {iv.feedback.improvements.map((s, idx) => (
+                                                                        <span key={idx} style={{
+                                                                            padding: '4px 10px', borderRadius: 20,
+                                                                            background: '#fef3c7', color: '#92400e',
+                                                                            fontSize: 11.5, fontWeight: 500
+                                                                        }}>{s}</span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Notes */}
+                                                        {iv.feedback.notes && (
+                                                            <div style={{
+                                                                padding: 14, borderRadius: 8,
+                                                                background: '#fff', border: '1px solid #e2e8f0',
+                                                                fontSize: 13, color: '#475569', lineHeight: 1.6,
+                                                                fontStyle: 'italic'
+                                                            }}>
+                                                                "{iv.feedback.notes}"
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                ))}
-                                                {iv.feedback.notes && (
-                                                    <p style={{
-                                                        fontSize: 12.5, color: '#6b7280',
-                                                        margin: '10px 0 0', lineHeight: 1.55
-                                                    }}>
-                                                        "{iv.feedback.notes}"
-                                                    </p>
                                                 )}
+                                            </div>
+                                        )}
+
+                                        {/* Show reschedule note */}
+                                        {iv.status === 'rescheduled' && iv.rescheduleNote && (
+                                            <div className="mi-reschedule-note">
+                                                <RefreshCw size={12} style={{ display: 'inline', marginRight: 4 }} />
+                                                <strong>Reschedule note:</strong> {iv.rescheduleNote}
                                             </div>
                                         )}
                                     </div>
@@ -856,6 +1051,55 @@ export default function MockInterviewPage() {
                     )}
                 </div>
             </div>
+
+            {/* ── Reschedule Modal ── */}
+            {showReschedule && (
+                <div className="mi-overlay" onClick={e => e.target === e.currentTarget && setShowReschedule(null)}>
+                    <div className="mi-modal">
+                        <div className="mi-modal-head">
+                            <h3 className="mi-modal-title">Reschedule Interview</h3>
+                            <button className="mi-modal-close" onClick={() => setShowReschedule(null)}>
+                                <X size={15} />
+                            </button>
+                        </div>
+                        <div className="mi-modal-body">
+                            <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 16px' }}>
+                                Propose a new date & time that works better for you.
+                            </p>
+                            <form onSubmit={rescheduleInterview}>
+                                <div className="mi-form-field">
+                                    <label className="mi-form-label">New Date & Time</label>
+                                    <input
+                                        type="datetime-local"
+                                        className="mi-input"
+                                        value={rescheduleForm.scheduledAt}
+                                        onChange={e => setRescheduleForm({ ...rescheduleForm, scheduledAt: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="mi-form-field">
+                                    <label className="mi-form-label">Reason / Note (optional)</label>
+                                    <textarea
+                                        className="mi-textarea"
+                                        placeholder="Let the student know why you're rescheduling..."
+                                        value={rescheduleForm.rescheduleNote}
+                                        onChange={e => setRescheduleForm({ ...rescheduleForm, rescheduleNote: e.target.value })}
+                                        rows={3}
+                                    />
+                                </div>
+                                <div className="mi-modal-footer">
+                                    <button type="button" className="mi-btn-cancel" onClick={() => setShowReschedule(null)}>
+                                        Cancel
+                                    </button>
+                                    <button type="submit" className="mi-btn-submit">
+                                        Send Reschedule
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }

@@ -4,11 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import {
     MessageSquare, Video, Building2, GraduationCap,
-    Calendar, Clock, ExternalLink, Plus, X, MapPin
+    Calendar, Clock, ExternalLink, Plus, X, MapPin, RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const MEET_LINK = 'https://meet.google.com/rpq-oeit-ces';
+
 
 export default function HomePage() {
     const { user } = useAuth();
@@ -18,8 +18,10 @@ export default function HomePage() {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [showProfileModal, setShowProfileModal] = useState(false);
+    const [showRescheduleModal, setShowRescheduleModal] = useState(null);
     const [selectedSenior, setSelectedSenior] = useState(null);
     const [interviewForm, setInterviewForm] = useState({ topic: '', description: '', scheduledAt: '' });
+    const [rescheduleForm, setRescheduleForm] = useState({ scheduledAt: '', rescheduleNote: '' });
 
     useEffect(() => {
         loadData();
@@ -58,8 +60,7 @@ export default function HomePage() {
                 alumniId: selectedSenior.userId,
                 topic: interviewForm.topic,
                 description: interviewForm.description,
-                scheduledAt: interviewForm.scheduledAt,
-                meetingLink: MEET_LINK
+                scheduledAt: interviewForm.scheduledAt
             });
             toast.success('Interview request sent!');
             setShowModal(false);
@@ -71,11 +72,28 @@ export default function HomePage() {
 
     const updateInterview = async (id, status) => {
         try {
-            await api.put(`/interviews/${id}`, { status, meetingLink: MEET_LINK });
+            await api.put(`/interviews/${id}`, { status });
             toast.success(`Interview ${status}`);
             loadData();
         } catch (err) {
             toast.error('Failed to update');
+        }
+    };
+
+    const rescheduleInterview = async (e) => {
+        e.preventDefault();
+        try {
+            await api.put(`/interviews/${showRescheduleModal}`, {
+                status: 'rescheduled',
+                scheduledAt: rescheduleForm.scheduledAt,
+                rescheduleNote: rescheduleForm.rescheduleNote
+            });
+            toast.success('Interview rescheduled!');
+            setShowRescheduleModal(null);
+            setRescheduleForm({ scheduledAt: '', rescheduleNote: '' });
+            loadData();
+        } catch (err) {
+            toast.error('Failed to reschedule');
         }
     };
 
@@ -195,7 +213,7 @@ export default function HomePage() {
                                     <div style={{ flex: 1 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                                             <h3 style={{ fontSize: 15, fontWeight: 600 }}>{iv.topic}</h3>
-                                            <span className={`badge badge-${iv.status === 'accepted' ? 'success' : iv.status === 'requested' ? 'warning' : iv.status === 'declined' ? 'danger' : 'neutral'}`}>
+                                            <span className={`badge badge-${iv.status === 'accepted' ? 'success' : iv.status === 'requested' ? 'warning' : iv.status === 'declined' ? 'danger' : iv.status === 'rescheduled' ? 'warning' : 'neutral'}`}>
                                                 {iv.status}
                                             </span>
                                         </div>
@@ -217,20 +235,60 @@ export default function HomePage() {
                                         </div>
                                     </div>
 
-                                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                        {/* Alumni can accept/decline pending */}
-                                        {user.role === 'alumni' && iv.status === 'requested' && (
+                                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                        {/* Alumni can accept/reschedule/decline pending */}
+                                        {user.role === 'alumni' && (iv.status === 'requested' || iv.status === 'rescheduled') && (
                                             <>
                                                 <button className="btn btn-success btn-sm" onClick={() => updateInterview(iv._id, 'accepted')}>Accept</button>
+                                                <button className="btn btn-secondary btn-sm" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }} onClick={() => { setShowRescheduleModal(iv._id); setRescheduleForm({ scheduledAt: '', rescheduleNote: '' }); }}>Reschedule</button>
                                                 <button className="btn btn-secondary btn-sm" onClick={() => updateInterview(iv._id, 'declined')}>Decline</button>
                                             </>
                                         )}
-                                        {/* Join link for accepted */}
-                                        {iv.status === 'accepted' && (
-                                            <a href={iv.meetingLink || MEET_LINK} target="_blank" rel="noreferrer"
-                                                className="btn btn-primary btn-sm">
-                                                <ExternalLink size={14} /> Join Meet
-                                            </a>
+
+                                        {/* Time-aware meeting section */}
+                                        {iv.status === 'accepted' && (() => {
+                                            const now = new Date();
+                                            const start = new Date(iv.scheduledAt);
+                                            const end = new Date(start.getTime() + (iv.duration || 30) * 60 * 1000);
+                                            const diffMs = start - now;
+                                            const diffHrs = Math.floor(diffMs / 3600000);
+                                            const diffMins = Math.floor((diffMs % 3600000) / 60000);
+
+                                            if (now < start) {
+                                                return (
+                                                    <span style={{ fontSize: 12, color: '#1e40af', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                        <Clock size={12} />
+                                                        {diffHrs > 0 ? `Starts in ${diffHrs}h ${diffMins}m` : diffMins > 0 ? `Starts in ${diffMins}m` : 'Starting soon'}
+                                                    </span>
+                                                );
+                                            } else if (now >= start && now <= end) {
+                                                return (
+                                                    <>
+                                                        <span style={{ fontSize: 12, color: '#065f46', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                                                            In Progress
+                                                        </span>
+                                                        {iv.meetingLink && (
+                                                            <a href={iv.meetingLink} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">
+                                                                <ExternalLink size={14} /> Join Meet
+                                                            </a>
+                                                        )}
+                                                    </>
+                                                );
+                                            } else {
+                                                return (
+                                                    <span style={{ fontSize: 12, color: '#92400e' }}>
+                                                        Auto-completing...
+                                                    </span>
+                                                );
+                                            }
+                                        })()}
+
+                                        {/* Completed badge */}
+                                        {iv.status === 'completed' && (
+                                            <span style={{ fontSize: 12, color: '#166534', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                ✅ Completed
+                                            </span>
                                         )}
                                     </div>
                                 </div>
@@ -238,6 +296,46 @@ export default function HomePage() {
                         ))}
                     </div>
                 </>
+            )}
+
+            {/* Reschedule Modal */}
+            {showRescheduleModal && (
+                <div className="modal-overlay" onClick={() => setShowRescheduleModal(null)}>
+                    <div className="modal" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 style={{ fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <RefreshCw size={18} style={{ color: 'var(--accent)' }} />
+                                Reschedule Interview
+                            </h3>
+                            <button className="btn btn-ghost btn-icon" onClick={() => setShowRescheduleModal(null)}>
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <form onSubmit={rescheduleInterview}>
+                            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                <div style={{ padding: 12, background: '#fef3c7', borderRadius: 8, fontSize: 13, color: '#92400e' }}>
+                                    📅 Propose a new date & time that works better for you.
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>New Date & Time *</label>
+                                    <input className="input" type="datetime-local" required
+                                        value={rescheduleForm.scheduledAt}
+                                        onChange={e => setRescheduleForm(f => ({ ...f, scheduledAt: e.target.value }))} />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Reason / Note (optional)</label>
+                                    <textarea className="input" rows={3} placeholder="Let the student know why you're rescheduling..."
+                                        value={rescheduleForm.rescheduleNote}
+                                        onChange={e => setRescheduleForm(f => ({ ...f, rescheduleNote: e.target.value }))} />
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowRescheduleModal(null)}>Cancel</button>
+                                <button type="submit" className="btn btn-accent">Send Reschedule</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             )}
 
             {/* Interview Request Modal */}
@@ -280,7 +378,7 @@ export default function HomePage() {
                                 </div>
 
                                 <div style={{ padding: 12, background: '#eff6ff', borderRadius: 8, fontSize: 13, color: 'var(--primary-dark)' }}>
-                                    📹 Google Meet: <a href={MEET_LINK} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>{MEET_LINK}</a>
+                                    📹 A unique video meeting link will be auto-generated when you send the request.
                                 </div>
                             </div>
                             <div className="modal-footer">
