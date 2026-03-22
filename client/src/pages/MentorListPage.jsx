@@ -28,7 +28,7 @@ export default function MentorListPage() {
     const [selectedSenior, setSelectedSenior] = useState(null);
     const [seniorResume, setSeniorResume] = useState(null);
     const [interviewForm, setInterviewForm] = useState({ topic: '', description: '', scheduledAt: '' });
-    const [rescheduleForm, setRescheduleForm] = { scheduledAt: '', rescheduleNote: '' };
+    const [rescheduleForm, setRescheduleForm] = useState({ scheduledAt: '', rescheduleNote: '' });
 
     useEffect(() => {
         loadAlumni();
