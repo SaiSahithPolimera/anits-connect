@@ -1,14 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import {
-    User, Save, Plus, X,
-    Briefcase, GraduationCap,
-    Link2, CheckCircle2, ChevronDown,
-    Upload, FileText, Trash2
-} from 'lucide-react';
+import { User, Mail, Phone, BookOpen, Building, MapPin, Briefcase, Calendar, Award, Code, GraduationCap, Github, Linkedin, ExternalLink, Download, MessageSquare, Video, FileText, ChevronRight, GraduationCap as GradIcon, Users, Edit3, Image as ImageIcon, Camera, Trash2, X, Check, Search, Filter, ArrowRight, Star, Clock, Heart, Shield, HelpCircle, Activity, Layout, Menu, Bell, Settings, LogOut } from 'lucide-react';
 import CustomSelect from '../components/ui/CustomSelect';
-import api from '../utils/api';
+import api, { API_URL } from '../utils/api';
 
 /* ══════════════════════════════════════════════════════
    TagInput is defined OUTSIDE ProfilePage.
@@ -282,7 +277,7 @@ export default function ProfilePage() {
                                                         <p style={{ fontWeight: 500, fontSize: 14, color: 'var(--text)', margin: 0, marginBottom: 4 }}>
                                                             {profile.resumeOriginalName || 'resume.pdf'}
                                                         </p>
-                                                        <a href={profile.resumeUrl.startsWith('data:') ? profile.resumeUrl : `http://localhost:3000${profile.resumeUrl}`} download={profile.resumeOriginalName || 'resume.pdf'} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>
+                                                        <a href={profile.resumeUrl.startsWith('data:') ? profile.resumeUrl : `${API_URL}${profile.resumeUrl}`} download={profile.resumeOriginalName || 'resume.pdf'} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none', fontWeight: 500 }}>
                                                             View / Download Document
                                                         </a>
                                                     </div>

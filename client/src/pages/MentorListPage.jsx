@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
+import api, { API_URL } from '../utils/api';
 import toast from 'react-hot-toast';
 import {
     Search, Users, Building2, Send,
@@ -28,7 +28,7 @@ export default function MentorListPage() {
     const [selectedSenior, setSelectedSenior] = useState(null);
     const [seniorResume, setSeniorResume] = useState(null);
     const [interviewForm, setInterviewForm] = useState({ topic: '', description: '', scheduledAt: '' });
-    const [rescheduleForm, setRescheduleForm] = useState({ scheduledAt: '', rescheduleNote: '' });
+    const [rescheduleForm, setRescheduleForm] = { scheduledAt: '', rescheduleNote: '' };
 
     useEffect(() => {
         loadAlumni();
@@ -1021,7 +1021,7 @@ export default function MentorListPage() {
                                 
                                 {seniorResume?.resumeUrl && (
                                     <div style={{ marginTop: 16 }}>
-                                        <a href={seniorResume.resumeUrl.startsWith('data:') ? seniorResume.resumeUrl : `http://localhost:3000${seniorResume.resumeUrl}`} 
+                                        <a href={seniorResume.resumeUrl.startsWith('data:') ? seniorResume.resumeUrl : `${API_URL}${seniorResume.resumeUrl}`} 
                                            download={seniorResume.resumeOriginalName || 'resume.pdf'} 
                                            target="_blank" rel="noopener noreferrer" 
                                            className="btn btn-primary btn-sm"
