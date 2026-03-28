@@ -172,7 +172,7 @@ export default function ProfilePage() {
         ? form.name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
         : '?';
 
-    const branches = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'CSBS'];
+    const branches = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'CSD', 'CSM'];
 
     return (
         <div className="pp-root">

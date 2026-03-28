@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, GraduationCap } from 'lucide-react';
+import { UserPlus, GraduationCap, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import CustomSelect from '../components/ui/CustomSelect';
 
@@ -11,6 +11,8 @@ export default function RegisterPage() {
         name: '', branch: '', year: '', company: '', graduationYear: ''
     });
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const { register } = useAuth();
     const navigate = useNavigate();
 
@@ -42,7 +44,7 @@ export default function RegisterPage() {
         }
     };
 
-    const branches = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'CSBS'];
+    const branches = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'CSD', 'CSM'];
 
     return (
         <div style={{
@@ -57,15 +59,15 @@ export default function RegisterPage() {
                 width: '100%', maxWidth: 480,
                 background: '#fff',
                 borderRadius: 20,
-                boxShadow: '0 20px 60px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)',
-                overflow: 'hidden'
+                boxShadow: '0 20px 60px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)'
             }}>
                 {/* Header */}
                 <div style={{
                     padding: '36px 32px 24px',
                     textAlign: 'center',
                     background: 'linear-gradient(135deg, var(--primary), var(--accent))',
-                    color: '#fff'
+                    color: '#fff',
+                    borderRadius: '20px 20px 0 0'
                 }}>
                     <div style={{
                         width: 52, height: 52,
@@ -130,11 +132,31 @@ export default function RegisterPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
                         <div>
                             <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-secondary)' }}>Password</label>
-                            <input className="input" type="password" name="password" value={form.password} onChange={handleChange} required placeholder="••••••••" />
+                            <div style={{ position: 'relative' }}>
+                                <input className="input" type={showPassword ? 'text' : 'password'} name="password" value={form.password} onChange={handleChange} required placeholder="••••••••" style={{ paddingRight: 36 }} />
+                                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                                    style={{
+                                        position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                                        background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}>
+                                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                                </button>
+                            </div>
                         </div>
                         <div>
                             <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--text-secondary)' }}>Confirm Password</label>
-                            <input className="input" type="password" name="confirmPassword" value={form.confirmPassword} onChange={handleChange} required placeholder="••••••••" />
+                            <div style={{ position: 'relative' }}>
+                                <input className="input" type={showConfirmPassword ? 'text' : 'password'} name="confirmPassword" value={form.confirmPassword} onChange={handleChange} required placeholder="••••••••" style={{ paddingRight: 36 }} />
+                                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    style={{
+                                        position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                                        background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}>
+                                    {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -154,7 +176,7 @@ export default function RegisterPage() {
                                 <CustomSelect 
                                     value={form.year} 
                                     onChange={(val) => setForm({ ...form, year: val })} 
-                                    options={[1, 2, 3, 4].map(y => ({ label: `${y}${y === 1 ? 'st' : y === 2 ? 'nd' : y === 3 ? 'rd' : 'th'} Year`, value: y }))} 
+                                options={[1, 2, 3, 4].map(y => ({ label: `${y}${y === 1 ? 'st' : y === 2 ? 'nd' : y === 3 ? 'rd' : 'th'} Year`, value: String(y) }))} 
                                     placeholder="Select year"
                                 />
                             </div>

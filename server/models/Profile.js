@@ -38,7 +38,7 @@ const profileSchema = new mongoose.Schema({
     // Student-specific fields
     branch: {
         type: String,
-        enum: ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'CSBS', ''],
+        enum: ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'CSD', 'CSM', ''],
         default: ''
     },
     year: {
@@ -96,6 +96,10 @@ const profileSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    skills: [{
+        type: String,
+        trim: true
+    }],
     mentorTopics: [{
         type: String,
         trim: true

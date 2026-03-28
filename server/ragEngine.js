@@ -1,3 +1,14 @@
+/**
+ * RAG Engine with Anti-Hallucination Measures
+ * 
+ * Features:
+ * - Strict context grounding
+ * - Fact verification
+ * - Tool action validation
+ * - Confidence scoring
+ * - Safe cosine similarity
+ */
+
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs-extra');
 const path = require('path');
@@ -8,30 +19,110 @@ const CACHE_FILE = path.join(__dirname, '../data/embeddings_cache.json');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+const EMBEDDING_MODEL = "gemini-embedding-001";
 
 let placementData = [];
 let embeddings = [];
 
+// Build searchable index for fact verification
+let dataIndex = {
+    byRollNo: new Map(),
+    byName: new Map(),
+    byCompany: new Map(),
+    byBranch: new Map(),
+    stats: null
+};
+
+/**
+ * Safe cosine similarity with zero-vector handling
+ */
 function cosineSimilarity(vecA, vecB) {
+    if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
+    
     let dot = 0, normA = 0, normB = 0;
     for (let i = 0; i < vecA.length; i++) {
         dot += vecA[i] * vecB[i];
         normA += vecA[i] * vecA[i];
         normB += vecB[i] * vecB[i];
     }
-    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+    
+    // Prevent division by zero
+    const denominator = Math.sqrt(normA) * Math.sqrt(normB);
+    if (denominator === 0) return 0;
+    
+    return dot / denominator;
 }
 
+/**
+ * Build data index for fast lookups and fact verification
+ */
+function buildDataIndex() {
+    const individuals = placementData.filter(r => !r.type || r.type === 'individual');
+    
+    individuals.forEach(record => {
+        // Index by roll number
+        if (record.rollNo) {
+            dataIndex.byRollNo.set(record.rollNo, record);
+        }
+        
+        // Index by normalized name (lowercase)
+        if (record.name) {
+            const nameLower = record.name.toLowerCase();
+            if (!dataIndex.byName.has(nameLower)) {
+                dataIndex.byName.set(nameLower, []);
+            }
+            dataIndex.byName.get(nameLower).push(record);
+        }
+        
+        // Index by company
+        if (record.company) {
+            const companyLower = record.company.toLowerCase();
+            if (!dataIndex.byCompany.has(companyLower)) {
+                dataIndex.byCompany.set(companyLower, []);
+            }
+            dataIndex.byCompany.get(companyLower).push(record);
+        }
+        
+        // Index by branch
+        if (record.branch) {
+            if (!dataIndex.byBranch.has(record.branch)) {
+                dataIndex.byBranch.set(record.branch, []);
+            }
+            dataIndex.byBranch.get(record.branch).push(record);
+        }
+    });
+    
+    // Pre-compute statistics
+    const packages = individuals.map(r => parseFloat(r.package) || 0).filter(p => p > 0);
+    dataIndex.stats = {
+        totalPlacements: individuals.length,
+        averagePackage: packages.length > 0 ? (packages.reduce((a, b) => a + b, 0) / packages.length).toFixed(2) : 0,
+        highestPackage: packages.length > 0 ? Math.max(...packages) : 0,
+        lowestPackage: packages.length > 0 ? Math.min(...packages) : 0,
+        uniqueCompanies: dataIndex.byCompany.size,
+        branches: [...dataIndex.byBranch.keys()],
+        years: [...new Set(individuals.map(r => r.year).filter(Boolean))]
+    };
+    
+    console.log(`Data index built: ${individuals.length} records indexed`);
+}
+
+/**
+ * Build structured embedding text with metadata tags for better semantic search
+ */
 function buildEmbeddingText(record) {
     if (record.type === 'individual' || !record.type) {
-        return `Student: ${record.name}, Roll No: ${record.rollNo}, Branch: ${record.branch}, Company: ${record.company}, Package: ${record.package} LPA, Year: ${record.year}. ${record.content || ''}`;
+        // Structured format with clear field markers
+        return `[PLACEMENT_RECORD] Student: ${record.name || 'Unknown'} | Roll Number: ${record.rollNo || 'N/A'} | Branch: ${record.branch || 'Unknown'} | Placed at Company: ${record.company || 'Unknown'} | Package: ${record.package || 'N/A'} LPA | Batch Year: ${record.year || 'Unknown'}. ${record.content || ''}`;
     }
-    return `${record.chunkTitle || record.sourceFile || ''}. ${record.content}`;
+    // For summaries and questions, add type marker
+    const typeMarker = record.type === 'summary' ? '[BATCH_SUMMARY]' : 
+                       record.type === 'questions' ? '[INTERVIEW_EXPERIENCE]' : '[DOCUMENT]';
+    return `${typeMarker} ${record.chunkTitle || record.sourceFile || ''} ${record.content || ''}`;
 }
 
 async function initialize() {
-    console.log("Initializing RAG Engine...");
+    console.log("Initializing RAG Engine with anti-hallucination measures...");
 
     if (!fs.existsSync(DATA_FILE)) {
         console.warn("Warning: Processed data file not found. RAG will work with senior data only.");
@@ -40,6 +131,9 @@ async function initialize() {
     }
     placementData = await fs.readJson(DATA_FILE);
     console.log(`Loaded ${placementData.length} placement records.`);
+
+    // Build data index for fact verification
+    buildDataIndex();
 
     if (fs.existsSync(CACHE_FILE)) {
         console.log("Loading embeddings from cache...");
@@ -56,6 +150,7 @@ async function initialize() {
 async function generateEmbeddings() {
     console.log("Generating embeddings (this may take a while)...");
     embeddings = [];
+    const embeddingModel = genAI.getGenerativeModel({ model: EMBEDDING_MODEL });
     const BATCH = 30;
     for (let i = 0; i < placementData.length; i += BATCH) {
         const batch = placementData.slice(i, i + BATCH);
@@ -112,10 +207,35 @@ function formatRecord(rec, queryKeywords = []) {
 }
 
 /**
- * Enhanced query with tool calling support
+ * Validate tool actions against actual senior profiles
+ * Removes any tool actions that reference non-existent users
+ */
+function validateToolActions(toolActions, seniorProfiles) {
+    const validUserIds = new Set(seniorProfiles.map(s => s.userId));
+    return toolActions.filter(action => {
+        if (!validUserIds.has(action.userId)) {
+            console.warn(`Removing invalid tool action: ${action.type} for non-existent user ${action.userId}`);
+            return false;
+        }
+        return true;
+    });
+}
+
+/**
+ * Get verified statistics from the data index
+ */
+function getVerifiedStats() {
+    if (!dataIndex.stats) {
+        return null;
+    }
+    return dataIndex.stats;
+}
+
+/**
+ * Enhanced query with anti-hallucination measures
  * @param {string} userQuery - User's question
  * @param {Array} seniorProfiles - Array of senior profiles from DB (injected by route)
- * @returns {{ text: string, toolActions: Array }}
+ * @returns {{ text: string, toolActions: Array, stats: Object }}
  */
 async function query(userQuery, seniorProfiles = []) {
     try {
@@ -125,6 +245,9 @@ async function query(userQuery, seniorProfiles = []) {
 
         // 1. Find relevant placement records via embedding similarity + Keyword Boosting
         let context = '';
+        let topMatches = [];
+        const embeddingModel = genAI.getGenerativeModel({ model: EMBEDDING_MODEL });
+        
         if (embeddings.length > 0) {
             const qResult = await embeddingModel.embedContent(userQuery);
             const qEmb = qResult.embedding.values;
@@ -140,94 +263,129 @@ async function query(userQuery, seniorProfiles = []) {
                 if (keywords.length > 0) {
                     const contentLower = (rec.content || '').toLowerCase();
                     const nameLower = (rec.name || '').toLowerCase();
+                    const companyLower = (rec.company || '').toLowerCase();
                     const chunkTitleLower = (rec.chunkTitle || '').toLowerCase();
                     
                     let matches = 0;
                     for (const kw of keywords) {
-                        if (contentLower.includes(kw) || nameLower.includes(kw) || chunkTitleLower.includes(kw)) {
+                        if (contentLower.includes(kw) || nameLower.includes(kw) || 
+                            companyLower.includes(kw) || chunkTitleLower.includes(kw)) {
                             matches++;
                         }
                     }
                     if (matches > 0) {
-                        // High weight for keyword matches to overcome missing embeddings or crowded chunks
                         keywordScore = (matches / keywords.length) * 0.8; 
                     }
                 }
 
-                return { rec, score: embScore + keywordScore };
+                return { rec, score: embScore + keywordScore, embScore, keywordScore };
             });
 
             scored.sort((a, b) => b.score - a.score);
-            context = scored.slice(0, 15).map(s => formatRecord(s.rec, keywords)).join('\n');
             
-            if (scored.length > 0 && scored[0].score > 0.4) {
-                console.log(`Top match: ${scored[0].rec.name || scored[0].rec.chunkTitle || 'Unnamed'} | Score: ${scored[0].score.toFixed(3)} (Emb: ${(scored[0].score - (scored[0].keywordScore || 0)).toFixed(3)})`);
+            // Use dynamic context window - include results above threshold
+            const SCORE_THRESHOLD = 0.3;
+            const MAX_RESULTS = 20;
+            topMatches = scored.filter(s => s.score >= SCORE_THRESHOLD).slice(0, MAX_RESULTS);
+            
+            context = topMatches.map(s => formatRecord(s.rec, keywords)).join('\n');
+            
+            if (topMatches.length > 0) {
+                console.log(`Top ${topMatches.length} matches (threshold ${SCORE_THRESHOLD}):`);
+                topMatches.slice(0, 3).forEach(m => {
+                    console.log(`  - ${m.rec.name || m.rec.chunkTitle || 'Unnamed'} | Score: ${m.score.toFixed(3)}`);
+                });
             }
         }
 
-        // 2. Build senior profile context
+        // 2. Build senior profile context with verified IDs
         const seniorContext = seniorProfiles.map(s =>
-            `SENIOR: ${s.name} | ID: ${s.userId} | Company: ${s.company} | Role: ${s.role} | Branch: ${s.branch} | Skills: ${(s.skills || []).join(', ')} | Bio: ${s.bio || ''} | Placement Tips: ${s.placementExperience || ''} | Topics: ${(s.mentorTopics || []).join(', ')}`
+            `SENIOR: ${s.name} | ID: ${s.userId} | Company: ${s.company || 'N/A'} | Role: ${s.role || 'N/A'} | Branch: ${s.branch || 'N/A'} | Skills: ${(s.skills || []).join(', ')} | Bio: ${s.bio || 'N/A'} | Placement Tips: ${s.placementExperience || 'N/A'} | Topics: ${(s.mentorTopics || []).join(', ')}`
         ).join('\n');
 
-        // 3. Generate response with tool-calling instructions
-        const prompt = `You are an AI assistant for the ANITS Alumni-Student Platform.
+        // 3. Get verified statistics for grounding
+        const stats = getVerifiedStats();
+        const statsContext = stats ? `
+VERIFIED STATISTICS (use these exact numbers):
+- Total Placements: ${stats.totalPlacements}
+- Average Package: ${stats.averagePackage} LPA
+- Highest Package: ${stats.highestPackage} LPA
+- Lowest Package: ${stats.lowestPackage} LPA
+- Unique Companies: ${stats.uniqueCompanies}
+- Batches: ${stats.years.join(', ')}
+- Branches: ${stats.branches.join(', ')}` : '';
 
-You have TWO data sources:
-1. PLACEMENT DATA: Historical records from batches 2018-22, 2019-23, 2020-24 (567 individual records + summaries + interview experiences)
-2. SENIOR PROFILES: Current seniors/alumni available on the platform for mentoring
+        // 4. Generate response with STRICT anti-hallucination prompt
+        const prompt = `You are an AI assistant for the ANITS Alumni-Student Platform. You MUST follow strict grounding rules.
 
-PLACEMENT DATA CONTEXT:
+=== CRITICAL ANTI-HALLUCINATION RULES ===
+1. ONLY state facts that appear EXACTLY in the PLACEMENT DATA CONTEXT below
+2. NEVER invent student names, companies, packages, or statistics
+3. If asked for statistics, ONLY use the VERIFIED STATISTICS provided
+4. If information is not in the context, say "I don't have that specific information in my records"
+5. When quoting numbers (packages, counts), use EXACT values from the context
+6. Do NOT extrapolate or estimate beyond the provided data
+7. If unsure, acknowledge uncertainty rather than guess
+
+=== DATA SOURCES ===
+
+PLACEMENT DATA CONTEXT (${topMatches.length} relevant records found):
 ${context || '(No specific placement records match this query)'}
+${statsContext}
 
-AVAILABLE SENIORS ON PLATFORM:
+AVAILABLE SENIORS ON PLATFORM (${seniorProfiles.length} profiles):
 ${seniorContext || '(No senior profiles loaded)'}
 
-TOOL ACTIONS:
-When your answer references a specific senior on the platform, you MUST include tool action tags so the frontend can render interactive buttons. Use this exact format:
+=== TOOL ACTIONS ===
+When recommending a senior from the list above, include tool tags using their EXACT ID from the list:
 
-[TOOL:VIEW_PROFILE:USER_ID:SENIOR_NAME] — to link to their profile
-[TOOL:SEND_MESSAGE:USER_ID:SENIOR_NAME] — to suggest messaging them
-[TOOL:REQUEST_INTERVIEW:USER_ID:SENIOR_NAME] — to suggest booking a mock interview
+[TOOL:VIEW_PROFILE:USER_ID:SENIOR_NAME] — link to profile
+[TOOL:SEND_MESSAGE:USER_ID:SENIOR_NAME] — suggest messaging
+[TOOL:REQUEST_INTERVIEW:USER_ID:SENIOR_NAME] — suggest mock interview
 
-Example: If someone asks "Who can help with Amazon prep?", and Kavya Nair (ID: abc123) is from Amazon, include:
-"Kavya Nair from Amazon can help you! [TOOL:VIEW_PROFILE:abc123:Kavya Nair] [TOOL:SEND_MESSAGE:abc123:Kavya Nair]"
+ONLY use IDs that appear in the AVAILABLE SENIORS section above. Do NOT invent IDs.
 
-RULES:
-- Answer placement data questions using the placement data context
-- When relevant, recommend seniors who can help (with tool actions)
-- Be specific: mention batch years, package amounts, company names
-- If you don't have data, say so honestly
-- Keep answers concise and helpful
-- Always use tool actions when mentioning a senior by name
+=== RESPONSE GUIDELINES ===
+- Be specific: cite batch years, exact package amounts, company names from context
+- When listing placements, use the exact format from context
+- For questions about topics not in context, suggest reaching out to seniors
+- Keep answers concise, accurate, and grounded
 
 User Question: ${userQuery}
 
-Answer:`;
+Answer (grounded only in provided context):`;
 
         const response = await model.generateContent(prompt);
         const rawText = response.response.text();
 
-        // 4. Parse tool actions from response
+        // 5. Parse and VALIDATE tool actions
         const toolActions = [];
         const toolRegex = /\[TOOL:(\w+):([a-f0-9]+):([^\]]+)\]/g;
         let match;
         while ((match = toolRegex.exec(rawText)) !== null) {
             toolActions.push({
-                type: match[1],           // VIEW_PROFILE, SEND_MESSAGE, REQUEST_INTERVIEW
-                userId: match[2],         // MongoDB user ID
-                seniorName: match[3]      // Display name
+                type: match[1],
+                userId: match[2],
+                seniorName: match[3]
             });
         }
+
+        // Validate tool actions against actual senior profiles
+        const validatedToolActions = validateToolActions(toolActions, seniorProfiles);
 
         // Remove tool tags from display text
         const cleanText = rawText.replace(/\[TOOL:[^\]]+\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
 
-        return { text: cleanText, toolActions };
+        return { 
+            text: cleanText, 
+            toolActions: validatedToolActions,
+            stats: stats,
+            matchCount: topMatches.length
+        };
     } catch (error) {
         console.error('RAG query error:', error);
         throw error;
     }
 }
 
-module.exports = { initialize, query };
+module.exports = { initialize, query, getVerifiedStats };

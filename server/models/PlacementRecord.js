@@ -12,7 +12,7 @@ const placementRecordSchema = new mongoose.Schema({
     // For document chunks (summaries, questions, etc.)
     type: {
         type: String,
-        enum: ['individual', 'summary', 'questions', 'chunk'],
+        enum: ['individual', 'summary', 'questions', 'chunk', 'document'],
         default: 'individual',
         index: true
     },

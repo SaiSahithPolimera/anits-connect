@@ -150,7 +150,7 @@ export default function MentorListPage() {
         }
     };
 
-    const branches = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'CSBS'];
+    const branches = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'CSD', 'CSM'];
 
     return (
         <>

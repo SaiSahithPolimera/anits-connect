@@ -65,12 +65,16 @@ async function main() {
         existingRecords = await fs.readJson(PROCESSED_FILE);
     }
 
-    // Normalize existing records to have the type field and content field
-    const individualRecords = existingRecords.map(r => ({
-        ...r,
-        type: 'individual',
-        content: `${r.name} (${r.rollNo}, ${r.branch}) placed at ${r.company}, ${r.package} LPA, batch ${r.year}`,
-    }));
+    // Normalize existing records to have the type field and enhanced content field
+    const individualRecords = existingRecords
+        .filter(r => !r.type || r.type === 'individual') // Filter out any old chunks
+        .map(r => ({
+            ...r,
+            type: 'individual',
+            // Enhanced content field with structured data for better embedding quality
+            content: `[PLACEMENT] ${r.name || 'Unknown'} (Roll: ${r.rollNo || 'N/A'}, Branch: ${r.branch || 'Unknown'}) was placed at ${r.company || 'Unknown Company'} with a package of ${r.package || 'N/A'} LPA in batch ${r.year || 'Unknown'}`,
+            sourceFile: r.file
+        }));
     console.log(`  ✓ ${individualRecords.length} individual placement records loaded`);
 
     // ── Step 2: Extract & chunk summary PDFs (one at a time to save memory) ──
@@ -101,6 +105,8 @@ async function main() {
             const chunks = chunkText(cleanText, 1000, 150);
 
             for (let i = 0; i < chunks.length; i++) {
+                // Add type marker to content for better embedding quality
+                const typeMarker = isQ ? '[INTERVIEW_EXPERIENCE]' : '[BATCH_SUMMARY]';
                 chunkRecords.push({
                     file: filename,
                     year: batchYear ? (batchYear.length === 2 ? `20${batchYear}` : batchYear) : '',
@@ -111,8 +117,9 @@ async function main() {
                     package: null,
                     type,
                     chunkTitle: `${title} (Part ${i + 1}/${chunks.length})`,
-                    content: chunks[i],
-                    originalText: chunks[i]
+                    content: `${typeMarker} ${title}: ${chunks[i]}`,
+                    originalText: chunks[i],
+                    sourceFile: filename
                 });
             }
             console.log(`    ✓ ${chunks.length} chunks created`);
