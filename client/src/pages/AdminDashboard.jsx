@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
-import { Shield, Users, Upload, BarChart3, UserX, UserCheck, Trash2, Search, Filter, MoreVertical, Eye, Ban, CheckCircle, X, Mail, Phone, Calendar, MapPin, Building2, GraduationCap, Award, ExternalLink, Clock } from 'lucide-react';
+import { Shield, Users, Upload, BarChart3, UserX, UserCheck, Trash2, Search, Filter, MoreVertical, Eye, Ban, CheckCircle, X, Mail, Phone, Calendar, MapPin, Building2, GraduationCap, Award, ExternalLink, Clock, FileText, Database, RefreshCw, AlertTriangle, FileUp, Layers, ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import CustomSelect from '../components/ui/CustomSelect';
 
 export default function AdminDashboard() {
@@ -14,6 +14,17 @@ export default function AdminDashboard() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [showUserModal, setShowUserModal] = useState(false);
     const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: '', message: '', onConfirm: null });
+    const [ragStatus, setRagStatus] = useState(null);
+    const [ragStatusLoading, setRagStatusLoading] = useState(false);
+    const [kbDocuments, setKbDocuments] = useState([]);
+    const [kbStats, setKbStats] = useState({ totalRecords: 0, totalDocuments: 0 });
+    const [kbLoading, setKbLoading] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [dragOver, setDragOver] = useState(false);
+    const [expandedDoc, setExpandedDoc] = useState(null);
+    const [duplicateDialog, setDuplicateDialog] = useState({ isOpen: false, file: null });
+    const fileInputRef = useRef(null);
 
     // Initial load
     useEffect(() => { loadData(); }, [tab]);
@@ -22,6 +33,15 @@ export default function AdminDashboard() {
     useEffect(() => {
         if (tab === 'users') loadData();
     }, [search, roleFilter]);
+
+    useEffect(() => {
+        if (tab !== 'data') return;
+
+        loadRagStatus(true);
+        loadKnowledgeBase();
+        const intervalId = setInterval(() => loadRagStatus(), 5000);
+        return () => clearInterval(intervalId);
+    }, [tab]);
 
     const loadData = async () => {
         setLoading(true);
@@ -79,28 +99,143 @@ export default function AdminDashboard() {
     };
 
     const viewUserDetails = (user) => {
-        console.log('Viewing user details:', user);
         setSelectedUser(user);
         setShowUserModal(true);
     };
 
-    const handleUpload = async (e) => {
-        const file = e.target.files[0];
+    const loadRagStatus = async (showLoader = false) => {
+        if (showLoader) setRagStatusLoading(true);
+        try {
+            const res = await api.get('/admin/rag-status');
+            setRagStatus(res.data.status || null);
+        } catch (e) {
+            if (showLoader) toast.error('Failed to fetch RAG status');
+        } finally {
+            if (showLoader) setRagStatusLoading(false);
+        }
+    };
+
+    const loadKnowledgeBase = async () => {
+        setKbLoading(true);
+        try {
+            const res = await api.get('/admin/knowledge-base');
+            setKbDocuments(res.data.documents || []);
+            setKbStats({ totalRecords: res.data.totalRecords, totalDocuments: res.data.totalDocuments });
+        } catch (e) { /* silent fail, will show empty */ }
+        finally { setKbLoading(false); }
+    };
+
+    const uploadFile = async (file, replaceExisting = false) => {
         if (!file) return;
+        const allowed = ['.pdf', '.csv', '.xlsx', '.xls'];
+        const ext = '.' + file.name.split('.').pop().toLowerCase();
+        if (!allowed.includes(ext)) {
+            toast.error('Only PDF, CSV, and Excel files are allowed.');
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('File size exceeds 10MB limit.');
+            return;
+        }
+        if (file.size === 0) {
+            toast.error('The file is empty (0 bytes).');
+            return;
+        }
+
+        // Check for duplicate
+        if (!replaceExisting) {
+            const existing = kbDocuments.find(d => d.sourceFile === file.name);
+            if (existing) {
+                setDuplicateDialog({ isOpen: true, file });
+                return;
+            }
+        }
+
+        setUploading(true);
+        setUploadProgress(0);
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('replaceExisting', replaceExisting ? 'true' : 'false');
         try {
-            const res = await api.post('/admin/placement-data', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const res = await api.post('/admin/placement-data', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+                onUploadProgress: (e) => {
+                    if (e.total) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+                }
+            });
             toast.success(res.data.message);
+            if (res.data.warning) toast(res.data.warning, { icon: '⚠️', duration: 8000 });
+            loadKnowledgeBase();
+            loadRagStatus(true);
         } catch (error) {
-            toast.error(error.response?.data?.error || 'Upload failed');
+            const errMsg = error.response?.data?.details || error.response?.data?.error || 'Upload failed';
+            toast.error(errMsg, { duration: 8000 });
+        } finally {
+            setUploading(false);
+            setUploadProgress(0);
+            if (fileInputRef.current) fileInputRef.current.value = '';
         }
+    };
+
+    const handleUpload = (e) => uploadFile(e.target.files[0]);
+
+    const handleDrop = useCallback((e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const file = e.dataTransfer?.files?.[0];
+        if (file) uploadFile(file);
+    }, [kbDocuments]);
+
+    const handleDragOver = useCallback((e) => { e.preventDefault(); setDragOver(true); }, []);
+    const handleDragLeave = useCallback(() => setDragOver(false), []);
+
+    const deleteDocument = (sourceFile) => {
+        setConfirmDialog({
+            isOpen: true,
+            title: 'Delete Document',
+            message: `Remove all indexed data from "${sourceFile}"? This will delete all chunks from this file and trigger a RAG rebuild.`,
+            onConfirm: async () => {
+                try {
+                    const res = await api.delete(`/admin/knowledge-base/${encodeURIComponent(sourceFile)}`);
+                    toast.success(res.data.message);
+                    loadKnowledgeBase();
+                    loadRagStatus(true);
+                } catch (e) { toast.error('Failed to delete document.'); }
+            }
+        });
+    };
+
+    const triggerRebuild = async () => {
+        try {
+            const res = await api.post('/admin/rag-rebuild');
+            toast.success(res.data.message);
+            loadRagStatus(true);
+        } catch (e) { toast.error('Failed to trigger rebuild.'); }
+    };
+
+    const getRagStateColor = (state) => {
+        if (state === 'running') return 'var(--warning)';
+        if (state === 'queued') return 'var(--accent)';
+        if (state === 'error') return 'var(--danger)';
+        return 'var(--success)';
+    };
+
+    const formatDateTime = (value) => {
+        if (!value) return 'N/A';
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return 'N/A';
+        return d.toLocaleString();
+    };
+
+    const formatDuration = (value) => {
+        if (typeof value !== 'number') return 'N/A';
+        return `${(value / 1000).toFixed(1)}s`;
     };
 
     const tabs = [
         { id: 'users', icon: Users, label: 'Users' },
         { id: 'analytics', icon: BarChart3, label: 'Analytics' },
-        { id: 'data', icon: Upload, label: 'Upload Data' }
+        { id: 'data', icon: Database, label: 'Knowledge Base' }
     ];
 
     return (
@@ -545,51 +680,239 @@ export default function AdminDashboard() {
                     </div>
                 )}
 
-                {/* Upload Tab */}
+                {/* Knowledge Base Tab */}
                 {tab === 'data' && (
-                    <div className="card" style={{ padding: 48, textAlign: 'center' }}>
-                        <div style={{
-                            width: 80, height: 80,
-                            background: 'linear-gradient(135deg, var(--primary), var(--accent))',
-                            borderRadius: 'var(--radius-lg)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            margin: '0 auto 24px',
-                            color: '#fff'
-                        }}>
-                            <Upload size={32} />
+                    <div style={{ display: 'grid', gap: 24 }}>
+                        {/* Top Stats Row */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                            {[
+                                { label: 'Indexed Documents', value: kbStats.totalDocuments, icon: FileText, color: 'var(--primary)' },
+                                { label: 'Total Chunks', value: kbStats.totalRecords, icon: Layers, color: 'var(--accent)' },
+                                { label: 'Embeddings', value: ragStatus?.currentEmbeddingCount ?? '—', icon: Zap, color: 'var(--success)' }
+                            ].map((s, i) => (
+                                <div key={i} className="card" style={{
+                                    padding: 20, display: 'flex', alignItems: 'center', gap: 16,
+                                    background: `linear-gradient(135deg, ${s.color}10, ${s.color}05)`
+                                }}>
+                                    <div style={{
+                                        width: 44, height: 44, borderRadius: 'var(--radius)', display: 'flex',
+                                        alignItems: 'center', justifyContent: 'center', background: s.color, color: '#fff'
+                                    }}>
+                                        <s.icon size={20} />
+                                    </div>
+                                    <div>
+                                        <p style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)' }}>{s.value}</p>
+                                        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{s.label}</p>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                        <h3 style={{
-                            fontSize: 24, fontWeight: 600,
-                            color: 'var(--text)', marginBottom: 8
-                        }}>
-                            Upload Placement Data
-                        </h3>
-                        <p style={{
-                            color: 'var(--text-secondary)', fontSize: 16,
-                            marginBottom: 32, maxWidth: 400, margin: '0 auto 32px'
-                        }}>
-                            Upload PDFs, CSV or Excel files with placement records to update the system (PDFs sync to RAG Engine)
-                        </p>
-                        <label style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 12,
-                            padding: '16px 32px',
-                            background: 'linear-gradient(135deg, var(--primary), var(--accent))',
-                            color: '#fff',
-                            borderRadius: 'var(--radius)',
-                            fontSize: 16, fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'all var(--transition)',
-                            boxShadow: '0 4px 12px rgba(37,99,235,0.3)'
-                        }}>
-                            <Upload size={20} />
-                            Choose File
-                            <input
-                                type="file"
-                                accept=".pdf,.csv,.xlsx,.xls"
-                                onChange={handleUpload}
-                                style={{ display: 'none' }}
-                            />
-                        </label>
+
+                        {/* Upload Zone */}
+                        <div
+                            className="card"
+                            onDrop={handleDrop}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            style={{
+                                padding: uploading ? 32 : 48, textAlign: 'center', position: 'relative', overflow: 'hidden',
+                                border: dragOver ? '2px dashed var(--primary)' : '2px dashed transparent',
+                                background: dragOver ? 'rgba(59,130,246,0.04)' : undefined,
+                                transition: 'all 0.2s ease'
+                            }}
+                        >
+                            {uploading ? (
+                                <div>
+                                    <div style={{ width: 48, height: 48, margin: '0 auto 16px', borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--primary)', animation: 'spin 1s linear infinite' }} />
+                                    <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>Processing file...</p>
+                                    <div style={{ maxWidth: 300, margin: '0 auto', height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+                                        <div style={{ height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, var(--primary), var(--accent))', width: `${uploadProgress}%`, transition: 'width 0.3s ease' }} />
+                                    </div>
+                                    <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>{uploadProgress}% uploaded</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div style={{
+                                        width: 72, height: 72, margin: '0 auto 20px', borderRadius: 'var(--radius-lg)',
+                                        background: 'linear-gradient(135deg, var(--primary), var(--accent))',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff'
+                                    }}>
+                                        <FileUp size={32} />
+                                    </div>
+                                    <h3 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
+                                        Upload to Knowledge Base
+                                    </h3>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 24, maxWidth: 420, margin: '0 auto 24px' }}>
+                                        Drag & drop a PDF, CSV, or Excel file here, or click to browse. Data will be chunked and indexed for the AI assistant.
+                                    </p>
+                                    <label style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: 10, padding: '14px 28px',
+                                        background: 'linear-gradient(135deg, var(--primary), var(--accent))', color: '#fff',
+                                        borderRadius: 'var(--radius)', fontSize: 15, fontWeight: 600, cursor: 'pointer',
+                                        boxShadow: '0 4px 14px rgba(37,99,235,0.25)', transition: 'all 0.2s ease'
+                                    }}>
+                                        <Upload size={18} />
+                                        Choose File
+                                        <input ref={fileInputRef} type="file" accept=".pdf,.csv,.xlsx,.xls" onChange={handleUpload} style={{ display: 'none' }} />
+                                    </label>
+                                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>Max 10MB • PDF, CSV, XLSX</p>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Indexed Documents List */}
+                        <div className="card" style={{ padding: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <Database size={18} style={{ color: 'var(--primary)' }} />
+                                    <h4 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>Indexed Documents</h4>
+                                </div>
+                                <button onClick={loadKnowledgeBase} className="btn btn-ghost btn-sm" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <RefreshCw size={14} /> Refresh
+                                </button>
+                            </div>
+                            {kbLoading && !kbDocuments.length ? (
+                                <div style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>
+                                    <div className="spinner" style={{ marginRight: 8 }} /> Loading...
+                                </div>
+                            ) : kbDocuments.length === 0 ? (
+                                <div style={{ padding: 48, textAlign: 'center' }}>
+                                    <FileText size={48} style={{ color: 'var(--text-muted)', opacity: 0.4, margin: '0 auto 12px', display: 'block' }} />
+                                    <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>No documents indexed yet. Upload a file to get started.</p>
+                                </div>
+                            ) : (
+                                <div>
+                                    {kbDocuments.map((doc, i) => {
+                                        const isExpanded = expandedDoc === doc.sourceFile;
+                                        const ext = (doc.sourceFile || '').split('.').pop().toLowerCase();
+                                        const isPdf = ext === 'pdf';
+                                        return (
+                                            <div key={i} style={{ borderBottom: i < kbDocuments.length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                                                <div style={{
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                    padding: '16px 24px', cursor: 'pointer', transition: 'background 0.15s'
+                                                }}
+                                                    onClick={() => setExpandedDoc(isExpanded ? null : doc.sourceFile)}
+                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 0 }}>
+                                                        <div style={{
+                                                            width: 40, height: 40, borderRadius: 'var(--radius-sm)',
+                                                            background: isPdf ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            color: isPdf ? '#ef4444' : '#10b981', flexShrink: 0
+                                                        }}>
+                                                            <FileText size={20} />
+                                                        </div>
+                                                        <div style={{ minWidth: 0 }}>
+                                                            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                {doc.sourceFile}
+                                                            </p>
+                                                            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                                                {doc.chunkCount} chunks • {doc.recordTypes.join(', ')}
+                                                                {doc.addedAt ? ` • ${new Date(doc.addedAt).toLocaleDateString()}` : ''}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); deleteDocument(doc.sourceFile); }}
+                                                            className="btn btn-ghost btn-sm"
+                                                            style={{ color: 'var(--danger)', padding: 8 }}
+                                                            title="Delete document"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                        {isExpanded ? <ChevronUp size={16} style={{ color: 'var(--text-muted)' }} /> : <ChevronDown size={16} style={{ color: 'var(--text-muted)' }} />}
+                                                    </div>
+                                                </div>
+                                                {isExpanded && (
+                                                    <div style={{ padding: '0 24px 16px 78px', fontSize: 13 }}>
+                                                        {doc.years.length > 0 && (
+                                                            <p style={{ color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                                                <strong>Years:</strong> {doc.years.join(', ')}
+                                                            </p>
+                                                        )}
+                                                        {doc.branches.length > 0 && (
+                                                            <p style={{ color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                                                <strong>Branches:</strong> {doc.branches.join(', ')}
+                                                            </p>
+                                                        )}
+                                                        {doc.companies.length > 0 && (
+                                                            <p style={{ color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                                                <strong>Companies:</strong> {doc.companies.join(', ')}{doc.companies.length >= 10 ? '...' : ''}
+                                                            </p>
+                                                        )}
+                                                        {doc.sampleContent && (
+                                                            <p style={{ color: 'var(--text-muted)', marginTop: 8, fontStyle: 'italic' }}>
+                                                                "{doc.sampleContent}..."
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* RAG Engine Panel */}
+                        <div className="card" style={{ padding: 24 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <Zap size={18} style={{ color: 'var(--warning)' }} />
+                                    <h4 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>RAG Engine</h4>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <button onClick={triggerRebuild} className="btn btn-ghost btn-sm" style={{ color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 6 }}
+                                        disabled={ragStatus?.isRunning}
+                                    >
+                                        <RefreshCw size={14} style={ragStatus?.isRunning ? { animation: 'spin 1s linear infinite' } : {}} />
+                                        {ragStatus?.isRunning ? 'Rebuilding...' : 'Rebuild'}
+                                    </button>
+                                    <button onClick={() => loadRagStatus(true)} className="btn btn-ghost btn-sm" style={{ color: 'var(--primary)' }}>Refresh</button>
+                                </div>
+                            </div>
+                            {ragStatus && (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                                    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 12 }}>
+                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>State</p>
+                                        <span style={{
+                                            display: 'inline-flex', alignItems: 'center', padding: '3px 10px', borderRadius: 20,
+                                            background: getRagStateColor(ragStatus.state), color: '#fff', fontSize: 11, fontWeight: 600, textTransform: 'capitalize'
+                                        }}>{ragStatus.state || 'idle'}</span>
+                                    </div>
+                                    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 12 }}>
+                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Records</p>
+                                        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{ragStatus.currentRecordCount ?? 0}</p>
+                                    </div>
+                                    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 12 }}>
+                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Embeddings</p>
+                                        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{ragStatus.currentEmbeddingCount ?? 0}</p>
+                                    </div>
+                                    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 12 }}>
+                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Last Rebuild</p>
+                                        <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{formatDateTime(ragStatus.finishedAt)}</p>
+                                    </div>
+                                    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 12 }}>
+                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Duration</p>
+                                        <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{formatDuration(ragStatus.lastRunDurationMs)}</p>
+                                    </div>
+                                    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 12 }}>
+                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Queue</p>
+                                        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{ragStatus.queuedJobs ?? 0}</p>
+                                    </div>
+                                </div>
+                            )}
+                            {ragStatus?.lastError && (
+                                <div style={{ marginTop: 12, padding: 12, borderRadius: 'var(--radius-sm)', background: 'rgba(239,68,68,0.08)', color: 'var(--danger)', fontSize: 13, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                    <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+                                    <span>{ragStatus.lastError}</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
@@ -611,7 +934,6 @@ export default function AdminDashboard() {
                     background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
                     justifyContent: 'center', zIndex: 1000, padding: 20
                 }}>
-                    {console.log('Rendering modal for user:', selectedUser)}
                     <div className="card" style={{
                         maxWidth: 600, width: '100%', maxHeight: '90vh',
                         overflow: 'auto', position: 'relative'
@@ -930,6 +1252,42 @@ export default function AdminDashboard() {
                             >
                                 Confirm
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Duplicate File Dialog */}
+            {duplicateDialog.isOpen && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', zIndex: 1200, padding: 20
+                }}>
+                    <div className="card" style={{ maxWidth: 440, width: '100%', padding: 24 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-sm)', background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--warning)' }}>
+                                <AlertTriangle size={20} />
+                            </div>
+                            <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>Duplicate File</h3>
+                        </div>
+                        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
+                            <strong>"{duplicateDialog.file?.name}"</strong> already exists in the knowledge base. What would you like to do?
+                        </p>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button
+                                onClick={() => { setDuplicateDialog({ isOpen: false, file: null }); }}
+                                className="btn btn-ghost"
+                                style={{ flex: 1, color: 'var(--text-secondary)' }}
+                            >Cancel</button>
+                            <button
+                                onClick={() => { const f = duplicateDialog.file; setDuplicateDialog({ isOpen: false, file: null }); uploadFile(f, false); }}
+                                className="btn" style={{ flex: 1, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', padding: '10px 16px', cursor: 'pointer' }}
+                            >Append</button>
+                            <button
+                                onClick={() => { const f = duplicateDialog.file; setDuplicateDialog({ isOpen: false, file: null }); uploadFile(f, true); }}
+                                className="btn" style={{ flex: 1, background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 'var(--radius-sm)', padding: '10px 16px', cursor: 'pointer' }}
+                            >Replace</button>
                         </div>
                     </div>
                 </div>

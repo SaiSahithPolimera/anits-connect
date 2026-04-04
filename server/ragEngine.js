@@ -23,6 +23,19 @@ const EMBEDDING_MODEL = "gemini-embedding-001";
 
 let placementData = [];
 let embeddings = [];
+let initializationQueue = Promise.resolve();
+let ragRuntimeStatus = {
+    isRunning: false,
+    queuedJobs: 0,
+    state: 'idle',
+    startedAt: null,
+    finishedAt: null,
+    lastRunDurationMs: null,
+    lastRunRecordCount: 0,
+    lastRunEmbeddingCount: 0,
+    lastError: null,
+    lastForced: false
+};
 
 // Build searchable index for fact verification
 let dataIndex = {
@@ -57,6 +70,14 @@ function cosineSimilarity(vecA, vecB) {
  * Build data index for fast lookups and fact verification
  */
 function buildDataIndex() {
+    dataIndex = {
+        byRollNo: new Map(),
+        byName: new Map(),
+        byCompany: new Map(),
+        byBranch: new Map(),
+        stats: null
+    };
+
     const individuals = placementData.filter(r => !r.type || r.type === 'individual');
     
     individuals.forEach(record => {
@@ -121,12 +142,14 @@ function buildEmbeddingText(record) {
     return `${typeMarker} ${record.chunkTitle || record.sourceFile || ''} ${record.content || ''}`;
 }
 
-async function initialize() {
+async function performInitialize({ forceRegenerateEmbeddings = false } = {}) {
     console.log("Initializing RAG Engine with anti-hallucination measures...");
 
     if (!fs.existsSync(DATA_FILE)) {
         console.warn("Warning: Processed data file not found. RAG will work with senior data only.");
         placementData = [];
+        embeddings = [];
+        buildDataIndex();
         return;
     }
     placementData = await fs.readJson(DATA_FILE);
@@ -135,7 +158,7 @@ async function initialize() {
     // Build data index for fact verification
     buildDataIndex();
 
-    if (fs.existsSync(CACHE_FILE)) {
+    if (!forceRegenerateEmbeddings && fs.existsSync(CACHE_FILE)) {
         console.log("Loading embeddings from cache...");
         embeddings = await fs.readJson(CACHE_FILE);
         if (embeddings.length !== placementData.length) {
@@ -143,8 +166,68 @@ async function initialize() {
             await generateEmbeddings();
         }
     } else {
+        if (forceRegenerateEmbeddings) {
+            console.log("Forced reindex requested. Regenerating embeddings from latest data...");
+        }
         await generateEmbeddings();
     }
+}
+
+function initialize(options = {}) {
+    const forceRegenerateEmbeddings = Boolean(options.forceRegenerateEmbeddings);
+    ragRuntimeStatus.queuedJobs += 1;
+
+    initializationQueue = initializationQueue
+        .catch((error) => {
+            console.error('Previous RAG initialization failed:', error.message);
+        })
+        .then(async () => {
+            ragRuntimeStatus.queuedJobs = Math.max(0, ragRuntimeStatus.queuedJobs - 1);
+            ragRuntimeStatus.isRunning = true;
+            ragRuntimeStatus.state = 'running';
+            ragRuntimeStatus.startedAt = new Date().toISOString();
+            ragRuntimeStatus.lastError = null;
+            ragRuntimeStatus.lastForced = forceRegenerateEmbeddings;
+
+            const startedAt = Date.now();
+
+            try {
+                await performInitialize({ forceRegenerateEmbeddings });
+                ragRuntimeStatus.finishedAt = new Date().toISOString();
+                ragRuntimeStatus.lastRunDurationMs = Date.now() - startedAt;
+                ragRuntimeStatus.lastRunRecordCount = placementData.length;
+                ragRuntimeStatus.lastRunEmbeddingCount = embeddings.length;
+            } catch (error) {
+                ragRuntimeStatus.finishedAt = new Date().toISOString();
+                ragRuntimeStatus.lastRunDurationMs = Date.now() - startedAt;
+                ragRuntimeStatus.lastError = error.message;
+                throw error;
+            } finally {
+                ragRuntimeStatus.isRunning = false;
+                ragRuntimeStatus.state = ragRuntimeStatus.queuedJobs > 0
+                    ? 'queued'
+                    : (ragRuntimeStatus.lastError ? 'error' : 'idle');
+            }
+        });
+
+    return initializationQueue;
+}
+
+function getStatus() {
+    const state = ragRuntimeStatus.isRunning
+        ? 'running'
+        : ragRuntimeStatus.queuedJobs > 0
+            ? 'queued'
+            : ragRuntimeStatus.lastError
+                ? 'error'
+                : 'idle';
+
+    return {
+        ...ragRuntimeStatus,
+        state,
+        currentRecordCount: placementData.length,
+        currentEmbeddingCount: embeddings.length
+    };
 }
 
 async function generateEmbeddings() {
@@ -388,4 +471,4 @@ Answer (grounded only in provided context):`;
     }
 }
 
-module.exports = { initialize, query, getVerifiedStats };
+module.exports = { initialize, query, getVerifiedStats, getStatus };

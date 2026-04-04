@@ -1,2 +1,17 @@
+# Environment variables
 .env
+
+# Dependencies
 node_modules
+
+# Auto-generated data & cache files (do not commit)
+data/embeddings_cache.json
+data/processed_placement_data.json
+data/raw_placement_data.json
+
+# Dev utility scripts
+scripts/listModels.js
+
+# Uploaded files
+uploads/*
+!uploads/.gitkeep

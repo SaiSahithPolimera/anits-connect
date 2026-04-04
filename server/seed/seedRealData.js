@@ -12,43 +12,115 @@ const DirectMessage = require('../models/DirectMessage');
 const Interview = require('../models/Interview');
 const PlacementRecord = require('../models/PlacementRecord');
 
-// ─── Featured Mentors from Major Companies ─────────────────────────────────
-// These are real placements from the PDF data with enhanced profile information
-// Only includes roll numbers that exist in the actual placement PDFs
-const FEATURED_MENTORS = [
-    // Amazon placements (from 2020-24 Placement Data.pdf)
-    { rollNo: '320126510165', name: 'Paidi Akileswar', branch: 'CSE', company: 'Amazon SDE', package: '48.00', year: '2020-24', skills: ['Java', 'System Design', 'AWS', 'DSA', 'Distributed Systems'], mentorTopics: ['FAANG Prep', 'System Design', 'DSA Mastery', 'Amazon Culture'], bio: 'SDE at Amazon India. Cracked Amazon with 48 LPA offer. Expertise in distributed systems and microservices. Happy to guide on FAANG preparation strategies.' },
-    { rollNo: '320126510069', name: 'Chaitanya Nanda Kumar Bajjangi', branch: 'CSE', company: 'Amazon AWS', package: '26.00', year: '2020-24', skills: ['Cloud Computing', 'AWS', 'Python', 'Terraform', 'DevOps'], mentorTopics: ['Cloud Engineering', 'AWS Certifications', 'DevOps Practices', 'Interview Tips'], bio: 'Cloud Engineer at Amazon AWS. Building scalable cloud infrastructure. Certified AWS Solutions Architect.' },
-    { rollNo: '320126510080', name: 'Doddi Likhitha', branch: 'CSE', company: 'Amazon AWS', package: '26.00', year: '2020-24', skills: ['Java', 'AWS Lambda', 'DynamoDB', 'Microservices', 'CI/CD'], mentorTopics: ['Women in Tech', 'Backend Development', 'AWS Services', 'Career Growth'], bio: 'SDE at Amazon AWS working on serverless architectures. Advocate for women in tech. Love mentoring on backend development.' },
-    { rollNo: '320126510098', name: 'Manasa Marapakula', branch: 'CSE', company: 'Amazon AWS', package: '26.00', year: '2020-24', skills: ['Python', 'Machine Learning', 'AWS SageMaker', 'Data Pipelines', 'SQL'], mentorTopics: ['ML at Scale', 'Data Engineering', 'Amazon Interview Process', 'Women in STEM'], bio: 'Applied Scientist at Amazon AWS. Building ML models for cloud optimization.' },
-    { rollNo: '320126510134', name: 'Gunasri Avala', branch: 'CSE', company: 'Amazon AWS', package: '26.00', year: '2020-24', skills: ['React', 'TypeScript', 'Node.js', 'GraphQL', 'AWS Amplify'], mentorTopics: ['Frontend at Scale', 'Full Stack Development', 'Amazon Interview', 'Open Source'], bio: 'Frontend Engineer at Amazon AWS Console. Building UI for millions of developers worldwide.' },
-    { rollNo: '320126552002', name: 'Harika Bagadhi', branch: 'CSD', company: 'Amazon AWS', package: '26.00', year: '2020-24', skills: ['AI/ML', 'Python', 'Deep Learning', 'Computer Vision', 'AWS'], mentorTopics: ['AI/ML Careers', 'CSD Branch Guidance', 'Amazon AI Roles', 'Deep Learning'], bio: 'ML Engineer at Amazon AWS AI. Working on AI-powered products. First batch CSD graduate to join Amazon.' },
-    { rollNo: '320126551028', name: 'Hema Sri Kedarisetty', branch: 'CSM', company: 'Amazon AWS', package: '26.00', year: '2020-24', skills: ['Data Science', 'Python', 'Statistics', 'A/B Testing', 'SQL'], mentorTopics: ['Data Science at Amazon', 'CSM Branch Tips', 'Statistical Modeling', 'Product Analytics'], bio: 'Data Scientist at Amazon AWS. Driving data-driven decisions for cloud products. CSM branch topper.' },
-    { rollNo: '320126512010', name: 'Sobhasri Chappa', branch: 'ECE', company: 'Amazon AWS', package: '26.00', year: '2020-24', skills: ['Embedded Systems', 'C++', 'IoT', 'AWS IoT Core', 'Python'], mentorTopics: ['ECE to Software', 'IoT Development', 'Amazon Interview from ECE', 'Embedded Programming'], bio: 'IoT Engineer at Amazon AWS. Working on AWS IoT services. Proved ECE students can ace software roles too!' },
-    { rollNo: '320126512096', name: 'Siva Rama Krishna Nollu', branch: 'ECE', company: 'Amazon AWS', package: '26.00', year: '2020-24', skills: ['VLSI', 'Python', 'SystemVerilog', 'Digital Design', 'Automation'], mentorTopics: ['Hardware Design', 'VLSI Careers', 'ECE Opportunities', 'Chip Design'], bio: 'Hardware Engineer at Amazon AWS working on custom silicon. Bridging VLSI and cloud computing.' },
-    { rollNo: '320126511082', name: 'Vishali Korubilli', branch: 'IT', company: 'Amazon AWS', package: '26.00', year: '2020-24', skills: ['Java', 'Spring Boot', 'Kafka', 'Microservices', 'AWS'], mentorTopics: ['Backend Engineering', 'IT Branch at Amazon', 'System Design', 'Microservices'], bio: 'Backend Engineer at Amazon AWS. Building high-throughput event-driven systems. IT branch champion!' },
-    { rollNo: '320126511084', name: 'Devi Kurmana', branch: 'IT', company: 'Amazon AWS', package: '26.00', year: '2020-24', skills: ['Python', 'Django', 'AWS', 'PostgreSQL', 'Redis'], mentorTopics: ['Python Development', 'IT to Product Companies', 'Web Development', 'DSA for Interviews'], bio: 'SDE at Amazon AWS. Transitioned from IT to a top product company. Passionate about helping others make the same leap.' },
+// ─── Dynamic Featured Mentors Generation ─────────────────────────────────
+// This function will automatically select top placements as featured mentors
+// Instead of hardcoded data, we'll use actual placement records from JSON
 
-    // Darwinbox (from 2020-24 Placement Data.pdf)
-    { rollNo: '320126510083', name: 'Akhil Venkat Gopisetty', branch: 'CSE', company: 'Darwinbox', package: '16.30', year: '2020-24', skills: ['JavaScript', 'React', 'Node.js', 'System Design', 'MongoDB'], mentorTopics: ['SaaS Development', 'Darwinbox Interview', 'Startups', 'Full Stack'], bio: 'SDE at Darwinbox. Working on enterprise SaaS platform. Previously interned at multiple startups.' },
+function generateFeaturedMentors(placementRecords) {
+    // Filter to individual placements only
+    const individuals = placementRecords.filter(r => r.type === 'individual' && r.rollNo && r.name && r.company && r.package);
+    
+    // Sort by package (highest first)
+    const sorted = individuals.sort((a, b) => {
+        const pkgA = parseFloat(a.package) || 0;
+        const pkgB = parseFloat(b.package) || 0;
+        return pkgB - pkgA;
+    });
+    
+    // Take top placements across different companies and branches for diversity
+    const featured = [];
+    const seenCompanies = new Set();
+    const seenBranches = new Set();
+    const PRIORITY_COMPANIES = ['Amazon', 'Walmart', 'Darwinbox', 'TalentServe', 'Tejas'];
+    const MIN_FEATURED_PACKAGE = 7.0; // Minimum package for featured mentors
+    
+    // First, add top packages from priority companies
+    for (const record of sorted) {
+        const pkg = parseFloat(record.package) || 0;
+        if (pkg < MIN_FEATURED_PACKAGE) break;
+        
+        const companyMatch = PRIORITY_COMPANIES.some(pc => (record.company || '').includes(pc));
+        if (companyMatch && featured.length < 40) {
+            featured.push(enhanceMentorProfile(record));
+            seenCompanies.add(record.company);
+            seenBranches.add(record.branch);
+        }
+    }
+    
+    // Then, add diversity across branches and companies
+    for (const record of sorted) {
+        if (featured.length >= 50) break;
+        const pkg = parseFloat(record.package) || 0;
+        if (pkg < MIN_FEATURED_PACKAGE) continue;
+        
+        // Prefer records from unseen companies or branches for diversity
+        const isNewCompany = !seenCompanies.has(record.company);
+        const isNewBranch = !seenBranches.has(record.branch);
+        
+        if (isNewCompany || isNewBranch || featured.length < 30) {
+            if (!featured.find(f => f.rollNo === record.rollNo)) {
+                featured.push(enhanceMentorProfile(record));
+                seenCompanies.add(record.company);
+                seenBranches.add(record.branch);
+            }
+        }
+    }
+    
+    console.log(`Generated ${featured.length} featured mentors from placement data`);
+    return featured;
+}
 
-    // Walmart (from 2020-24 Placement Data.pdf)
-    { rollNo: '320126510167', name: 'Deepa Priyanka Pentapalli', branch: 'CSE', company: 'Walmart Global Tech', package: '27.00', year: '2020-24', skills: ['Java', 'Spring Boot', 'Kafka', 'React', 'System Design'], mentorTopics: ['Walmart Prep', 'E-commerce Tech', 'System Design', 'High CTC Prep'], bio: 'SDE at Walmart Global Tech. Building e-commerce systems serving 100M+ users. Highest package in 2024 batch (non-Amazon).' },
-
-    // TCS Digital - top performers (from 2020-24 Placement Data.pdf)
-    { rollNo: '320126510004', name: 'Sai Sahith Polimera', branch: 'CSE', company: 'TCS Digital', package: '7.70', year: '2020-24', skills: ['React', 'Node.js', 'Python', 'AWS', 'MongoDB'], mentorTopics: ['Full Stack Development', 'TCS Digital Interview', 'Project Building', 'Tech Career'], bio: 'Digital Developer at TCS. Building full-stack enterprise solutions. Active open-source contributor.' },
-
-    // TalentServe (from 2020-24 Placement Data.pdf)
-    { rollNo: '320126510031', name: 'Kasireddi Sai Shruthi', branch: 'CSE', company: 'TalentServe', package: '10.50', year: '2020-24', skills: ['Python', 'Django', 'React', 'PostgreSQL', 'Docker'], mentorTopics: ['Web Development', 'TalentServe Interview', 'Startup Experience', 'Backend Dev'], bio: 'Full Stack Developer at TalentServe. Building AI-powered recruitment tools.' },
-    { rollNo: '320126511003', name: 'Sahith Raja Arangi', branch: 'IT', company: 'TalentServe', package: '10.50', year: '2020-24', skills: ['Java', 'Spring', 'React', 'MySQL', 'Jenkins'], mentorTopics: ['Enterprise Java', 'IT Branch Success', 'Service-Based to Product'], bio: 'Software Engineer at TalentServe. Specialist in Java enterprise applications.' },
-
-    // Tejas Networks (from 2020-24 Placement Data.pdf)
-    { rollNo: '320126510136', name: 'Harshitha Bali', branch: 'CSE', company: 'Tejas Networks Pvt. Ltd', package: '10.00', year: '2020-24', skills: ['C++', 'Networking', 'Linux', 'SDLC', 'Automation'], mentorTopics: ['Networking Industry', 'C++ Development', 'Telecom Careers', 'Systems Programming'], bio: 'Software Developer at Tejas Networks. Working on 5G telecom infrastructure.' },
-
-    // Additional high-package placements from actual PDF data
-    { rollNo: '320126510081', name: 'Lalitha Vennela Draksharapu', branch: 'CSE', company: 'TalentServe', package: '10.50', year: '2020-24', skills: ['Python', 'React', 'Node.js', 'MongoDB', 'AWS'], mentorTopics: ['Full Stack Development', 'Women in Tech', 'Startup Culture'], bio: 'Full Stack Developer at TalentServe. Building innovative recruitment solutions.' },
-    { rollNo: '320126510150', name: 'Naveen Kumar Karri', branch: 'CSE', company: 'TalentServe', package: '10.50', year: '2020-24', skills: ['Java', 'Spring Boot', 'React', 'Docker', 'CI/CD'], mentorTopics: ['Java Development', 'Backend Engineering', 'DevOps Basics'], bio: 'Software Engineer at TalentServe. Expert in Java backend development.' },
-];
+function enhanceMentorProfile(record) {
+    // Generate realistic mentor profile based on placement data
+    const pkg = parseFloat(record.package) || 0;
+    const branch = record.branch || 'CSE';
+    const company = record.company || 'Unknown';
+    
+    // Determine skills based on branch
+    const branchSkills = {
+        'CSE': ['Java', 'Python', 'JavaScript', 'DSA', 'System Design', 'React', 'Node.js', 'SQL'],
+        'CSD': ['Python', 'TensorFlow', 'Machine Learning', 'Deep Learning', 'Data Science', 'AI'],
+        'CSM': ['Python', 'R', 'Data Analysis', 'Statistics', 'SQL', 'Tableau', 'Machine Learning'],
+        'ECE': ['C', 'C++', 'Embedded Systems', 'VLSI', 'IoT', 'Python', 'Signal Processing'],
+        'EEE': ['MATLAB', 'Python', 'Power Systems', 'Control Systems', 'PLC', 'SCADA'],
+        'IT': ['Java', 'Python', 'JavaScript', 'Web Development', 'Cloud', 'Database', 'DevOps'],
+        'MECH': ['CAD', 'SolidWorks', 'ANSYS', 'Python', 'Manufacturing', 'Design'],
+        'CIVIL': ['AutoCAD', 'STAAD Pro', 'Project Management', 'Structural Design'],
+        'CHEM': ['Process Engineering', 'Chemical Design', 'Quality Control', 'Python'],
+        'BioTech': ['Biotechnology', 'Research', 'Lab Techniques', 'Data Analysis'],
+        'Auto': ['Automotive Design', 'CAD', 'Vehicle Dynamics', 'Manufacturing']
+    };
+    
+    const skills = branchSkills[branch] || branchSkills['CSE'];
+    const selectedSkills = skills.slice(0, 4 + Math.floor(Math.random() * 3));
+    
+    // Generate mentor topics based on company and package
+    const baseMentorTopics = [];
+    if (company.includes('Amazon')) baseMentorTopics.push('FAANG Prep', 'System Design', 'Amazon Interview');
+    else if (company.includes('Walmart')) baseMentorTopics.push('E-commerce Tech', 'System Design', 'High CTC Prep');
+    else if (company.includes('TCS')) baseMentorTopics.push('Service Companies', 'Project Building', 'Tech Career');
+    else baseMentorTopics.push('Interview Preparation', 'Career Guidance', 'Technical Skills');
+    
+    if (branch === 'CSD' || branch === 'CSM') baseMentorTopics.push('Data Science Career');
+    baseMentorTopics.push(`${branch} Branch Guidance`);
+    
+    // Generate bio
+    let bio = `Placed at ${company} with ${pkg} LPA package. `;
+    if (pkg >= 20) bio += `Cracked top-tier company with excellent package. Expert in ${selectedSkills[0]} and ${selectedSkills[1]}. `;
+    bio += `Happy to mentor students on placement preparation and career guidance.`;
+    
+    return {
+        rollNo: record.rollNo,
+        name: record.name,
+        branch: branch,
+        company: company,
+        package: record.package,
+        year: record.year,
+        skills: selectedSkills,
+        mentorTopics: baseMentorTopics,
+        bio: bio
+    };
+}
 
 
 // Mentor topics pool by branch/company type
@@ -140,6 +212,11 @@ const seedRealData = async () => {
                 }
             }
         }
+
+        // Generate featured mentors dynamically from placement data
+        console.log('Generating featured mentors from placement data...');
+        const FEATURED_MENTORS = generateFeaturedMentors(allPlacements);
+        console.log(`✓ Generated ${FEATURED_MENTORS.length} featured mentors`);
 
         // Build featured mentor lookup
         const featuredMap = {};
@@ -275,7 +352,11 @@ const seedRealData = async () => {
         console.log(`  Admin:    admin@anits.edu.in / admin123`);
         console.log(`  Students: student1-5@anits.edu.in / password123`);
         console.log(`  Alumni:   [rollNo]@anits.edu.in / password123`);
-        console.log(`  Featured: ${FEATURED_MENTORS.map(m => m.name).slice(0, 5).join(', ')}...`);
+        console.log(`  Top Featured Mentors (auto-selected from placement data):`);
+        const topFeatured = FEATURED_MENTORS.slice(0, 8);
+        topFeatured.forEach(m => {
+            console.log(`    - ${m.name} (${m.branch}) @ ${m.company} - ${m.package} LPA`);
+        });
 
         process.exit(0);
     } catch(err) {
