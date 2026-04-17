@@ -13,20 +13,7 @@ router.post('/query', optionalAuth, async (req, res) => {
         const { message } = req.body;
         if (!message) return res.status(400).json({ error: 'Message is required.' });
 
-        // Fetch all senior profiles to inject into RAG context
-        const seniorProfiles = await Profile.find()
-            .populate({ path: 'userId', match: { role: 'alumni' } })
-            .lean();
-
-        // Filter to only alumni profiles and map userId
-        const seniors = seniorProfiles
-            .filter(p => p.userId && p.userId.role === 'alumni')
-            .map(p => ({
-                ...p,
-                userId: p.userId._id.toString()
-            }));
-
-        const result = await query(message, seniors);
+        const result = await query(message);
 
         res.json({
             response: result.text,

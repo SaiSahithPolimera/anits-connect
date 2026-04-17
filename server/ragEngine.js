@@ -12,6 +12,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs-extra');
 const path = require('path');
+const Profile = require('./models/Profile');
 require('dotenv').config();
 
 // Utility for exponential backoff handling 429 errors
@@ -319,11 +320,25 @@ function formatRecord(rec, queryKeywords = []) {
 }
 
 /**
- * Validate tool actions against actual senior profiles
+ * Validate tool actions dynamically against actual senior profiles in DB
  * Removes any tool actions that reference non-existent users
  */
-function validateToolActions(toolActions, seniorProfiles) {
-    const validUserIds = new Set(seniorProfiles.map(s => s.userId));
+async function validateToolActions(toolActions) {
+    if (!toolActions || toolActions.length === 0) return [];
+    
+    // Extract valid MongoDB ObjectIDs
+    const userIds = toolActions.map(action => action.userId).filter(id => id && id.length === 24);
+    
+    if (userIds.length === 0) return [];
+
+    const validProfiles = await Profile.find({ userId: { $in: userIds } })
+        .populate({ path: 'userId', match: { role: 'alumni' } })
+        .lean();
+        
+    const validUserIds = new Set(
+        validProfiles.filter(p => p.userId && p.userId.role === 'alumni').map(p => p.userId._id.toString())
+    );
+
     return toolActions.filter(action => {
         if (!validUserIds.has(action.userId)) {
             console.warn(`Removing invalid tool action: ${action.type} for non-existent user ${action.userId}`);
@@ -344,12 +359,11 @@ function getVerifiedStats() {
 }
 
 /**
- * Enhanced query with anti-hallucination measures
+ * Enhanced query with database tools and anti-hallucination measures
  * @param {string} userQuery - User's question
- * @param {Array} seniorProfiles - Array of senior profiles from DB (injected by route)
  * @returns {{ text: string, toolActions: Array, stats: Object }}
  */
-async function query(userQuery, seniorProfiles = []) {
+async function query(userQuery) {
     try {
         if (placementData.length > 0 && embeddings.length === 0) {
             await initialize();
@@ -416,65 +430,110 @@ async function query(userQuery, seniorProfiles = []) {
             }
         }
 
-        // 2. Build senior profile context with verified IDs
-        const seniorContext = seniorProfiles.map(s =>
-            `SENIOR: ${s.name} | ID: ${s.userId} | Company: ${s.company || 'N/A'} | Role: ${s.role || 'N/A'} | Branch: ${s.branch || 'N/A'} | Skills: ${(s.skills || []).join(', ')} | Bio: ${s.bio || 'N/A'} | Placement Tips: ${s.placementExperience || 'N/A'} | Topics: ${(s.mentorTopics || []).join(', ')}`
-        ).join('\n');
-
-        // 3. Get verified statistics for grounding
+        // 2. Get verified statistics for grounding
         const stats = getVerifiedStats();
         const statsContext = stats ? `
-VERIFIED STATISTICS (use these exact numbers):
+VERIFIED STATISTICS:
 - Total Placements: ${stats.totalPlacements}
 - Average Package: ${stats.averagePackage} LPA
 - Highest Package: ${stats.highestPackage} LPA
 - Lowest Package: ${stats.lowestPackage} LPA
-- Unique Companies: ${stats.uniqueCompanies}
-- Batches: ${stats.years.join(', ')}
-- Branches: ${stats.branches.join(', ')}` : '';
+- Unique Companies: ${stats.uniqueCompanies}` : '';
 
-        // 4. Generate response with STRICT anti-hallucination prompt
-        const prompt = `You are an AI assistant for the ANITS Alumni-Student Platform. You MUST follow strict grounding rules.
+        // 3. Configure Gemini Tools 
+        const tools = [{
+            functionDeclarations: [
+                {
+                    name: "getTotalSeniorsCount",
+                    description: "Queries the database for the total number of senior/alumni profiles. Use this ONLY when asked how many seniors or alumni are available.",
+                },
+                {
+                    name: "searchSeniorsProfiles",
+                    description: "Dynamically queries the database for seniors. Use this to find seniors working at a certain company or with a specific role.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            company: { type: "STRING", description: "Company name (e.g., 'TCS', 'Amazon'). Leave blank if none." },
+                            role: { type: "STRING", description: "Job title (e.g., 'Software Engineer'). Leave blank if none." },
+                            branch: { type: "STRING", description: "Branch (e.g., 'CSE', 'ECE'). Leave blank if none." }
+                        }
+                    }
+                }
+            ]
+        }];
 
-=== CRITICAL ANTI-HALLUCINATION RULES ===
-1. ONLY state facts that appear EXACTLY in the PLACEMENT DATA CONTEXT below
-2. NEVER invent student names, companies, packages, or statistics
-3. If asked for statistics, ONLY use the VERIFIED STATISTICS provided
-4. If information is not in the context, say "I don't have that specific information in my records"
-5. When quoting numbers (packages, counts), use EXACT values from the context
-6. Do NOT extrapolate or estimate beyond the provided data
-7. If unsure, acknowledge uncertainty rather than guess
+        const chatModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash", tools });
+        const chat = chatModel.startChat();
 
-=== DATA SOURCES ===
+        // 4. Generate dynamic, professional response
+        const prompt = `You are a helpful, professional AI assistant for the ANITS Alumni-Student Platform.
+You can greet the user dynamically and naturally without strictly stating statistics unless asked.
 
-PLACEMENT DATA CONTEXT (${topMatches.length} relevant records found):
+=== STRICT PHRASING RULES ===
+1. When providing counts of seniors, you MUST say "I have access to XX seniors' data" or "There are XX seniors in the database". 
+2. Do NOT say "available on the platform" when stating numbers.
+3. If the user greets you (e.g. "Hello"), provide a professional, warm greeting. DO NOT state the total number of seniors unless explicitly asked. Keep it conversational.
+4. If asked about seniors, USE your Database Search Tools to query their data dynamically rather than hallucinating facts.
+
+=== PLACEMENT DATA CONTEXT ===
 ${context || '(No specific placement records match this query)'}
 ${statsContext}
 
-AVAILABLE SENIORS ON PLATFORM (${seniorProfiles.length} profiles):
-${seniorContext || '(No senior profiles loaded)'}
-
 === TOOL ACTIONS ===
-When recommending a senior from the list above, include tool tags using their EXACT ID from the list:
+If you find relevant seniors via your tools, you can recommend them using EXACT tags:
+[TOOL:VIEW_PROFILE:USER_ID:SENIOR_NAME]
+[TOOL:SEND_MESSAGE:USER_ID:SENIOR_NAME]
 
-[TOOL:VIEW_PROFILE:USER_ID:SENIOR_NAME] — link to profile
-[TOOL:SEND_MESSAGE:USER_ID:SENIOR_NAME] — suggest messaging
-[TOOL:REQUEST_INTERVIEW:USER_ID:SENIOR_NAME] — suggest mock interview
+User Question: ${userQuery}`;
 
-ONLY use IDs that appear in the AVAILABLE SENIORS section above. Do NOT invent IDs.
+        let result = await invokeWithRetry(() => chat.sendMessage(prompt));
 
-=== RESPONSE GUIDELINES ===
-- Be specific: cite batch years, exact package amounts, company names from context
-- When listing placements, use the exact format from context
-- For questions about topics not in context, suggest reaching out to seniors
-- Keep answers concise, accurate, and grounded
+        // 5. Handle Native Tool Calling execution loop
+        if (result.response.functionCalls && result.response.functionCalls().length > 0) {
+            const calls = result.response.functionCalls();
+            const functionResponses = [];
+            
+            for (const call of calls) {
+                try {
+                    if (call.name === "getTotalSeniorsCount") {
+                        const seniorProfiles = await Profile.find().populate({ path: 'userId', match: { role: 'alumni' } }).lean();
+                        const seniorsCount = seniorProfiles.filter(p => p.userId && p.userId.role === 'alumni').length;
+                        
+                        functionResponses.push({
+                            functionResponse: { name: call.name, response: { data: { totalCount: seniorsCount } } }
+                        });
+                    } else if (call.name === "searchSeniorsProfiles") {
+                        const { company, role, branch } = call.args;
+                        let queryArgs = {};
+                        if (company) queryArgs.company = new RegExp(company, 'i');
+                        if (role) queryArgs.role = new RegExp(role, 'i');
+                        if (branch) queryArgs.branch = new RegExp(branch, 'i');
+                        
+                        const profiles = await Profile.find(queryArgs).populate({ path: 'userId', match: { role: 'alumni' } }).limit(10).lean();
+                        const matches = profiles.filter(p => p.userId && p.userId.role === 'alumni').map(s => ({
+                            userId: s.userId._id.toString(),
+                            name: s.name,
+                            company: s.company || 'N/A',
+                            role: s.role || 'N/A'
+                        }));
+                        
+                        functionResponses.push({
+                            functionResponse: { name: call.name, response: { data: { matches } } }
+                        });
+                    }
+                } catch (dbErr) {
+                    console.error("Database Tool execution error:", dbErr);
+                    functionResponses.push({
+                        functionResponse: { name: call.name, response: { error: dbErr.message } }
+                    });
+                }
+            }
+            
+            // Re-invoke AI with tool outcomes
+            result = await invokeWithRetry(() => chat.sendMessage(functionResponses));
+        }
 
-User Question: ${userQuery}
-
-Answer (grounded only in provided context):`;
-
-        const response = await invokeWithRetry(() => model.generateContent(prompt));
-        const rawText = response.response.text();
+        const rawText = result.response.text();
 
         // 5. Parse and VALIDATE tool actions
         const toolActions = [];
@@ -489,7 +548,7 @@ Answer (grounded only in provided context):`;
         }
 
         // Validate tool actions against actual senior profiles
-        const validatedToolActions = validateToolActions(toolActions, seniorProfiles);
+        const validatedToolActions = await validateToolActions(toolActions);
 
         // Remove tool tags from display text
         const cleanText = rawText.replace(/\[TOOL:[^\]]+\]/g, '').replace(/\n{3,}/g, '\n\n').trim();
