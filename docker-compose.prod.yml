@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: asp-mongodb-prod
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-admin123}
+      MONGO_INITDB_DATABASE: alumni_student_platform
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - asp-network
+
+  # Redis (for Socket.io adapter & sessions)
+  redis:
+    image: redis:7-alpine
+    container_name: asp-redis-prod
+    restart: always
+    volumes:
+      - redis_data:/data
+    networks:
+      - asp-network
+
+  # Backend API Server
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asp-backend-prod
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - MONGO_DB_URL=mongodb://admin:${MONGO_PASSWORD:-admin123}@mongodb:27017/alumni_student_platform?authSource=admin
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - FRONTEND_URL=http://your-droplet-ip:5173
+    volumes:
+      # We ONLY mount the dynamic directories where data needs to be persistent.
+      # The code will be read from the Docker image directly.
+      - uploads_data:/app/uploads
+      - ./data/embeddings_cache.json:/app/data/embeddings_cache.json
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - asp-network
+
+  # Frontend Server (Using Nginx to serve static files in production)
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: asp-frontend-prod
+    restart: always
+    ports:
+      - "80:5173" # Maps standard web HTTP (port 80) to the container
+    environment:
+      - VITE_API_URL=http://your-droplet-ip:3000
+    networks:
+      - asp-network
+
+volumes:
+  mongodb_data:
+  redis_data:
+  uploads_data:
+
+networks:
+  asp-network:
+    driver: bridge

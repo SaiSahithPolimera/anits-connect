@@ -14,6 +14,28 @@ const fs = require('fs-extra');
 const path = require('path');
 require('dotenv').config();
 
+// Utility for exponential backoff handling 429 errors
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function invokeWithRetry(apiCall, maxRetries = 5, baseDelay = 2000) {
+    let retries = 0;
+    while (retries < maxRetries) {
+        try {
+            return await apiCall();
+        } catch (error) {
+            if (error.status === 429 || (error.message && error.message.includes('429')) || error.status === 503) {
+                const delayMs = baseDelay * Math.pow(2, retries) + Math.random() * 500;
+                console.warn(`[API Rate Limit] Retrying in ${Math.round(delayMs)}ms... (Attempt ${retries + 1}/${maxRetries})`);
+                await sleep(delayMs);
+                retries++;
+            } else {
+                throw error;
+            }
+        }
+    }
+    throw new Error(`API Request failed after ${maxRetries} retries due to rate limiting.`);
+}
+
 const DATA_FILE = path.join(__dirname, '../data/processed_placement_data.json');
 const CACHE_FILE = path.join(__dirname, '../data/embeddings_cache.json');
 
@@ -234,28 +256,35 @@ async function generateEmbeddings() {
     console.log("Generating embeddings (this may take a while)...");
     embeddings = [];
     const embeddingModel = genAI.getGenerativeModel({ model: EMBEDDING_MODEL });
-    const BATCH = 30;
+    
+    // REDUCED concurrency from 30 to 3 to prevent hitting Google's rate limits
+    const BATCH = 3; 
     for (let i = 0; i < placementData.length; i += BATCH) {
         const batch = placementData.slice(i, i + BATCH);
         const results = await Promise.all(batch.map(async (rec) => {
             try {
-                const r = await embeddingModel.embedContent(buildEmbeddingText(rec));
+                const r = await invokeWithRetry(() => embeddingModel.embedContent(buildEmbeddingText(rec)));
                 return r.embedding.values;
             } catch (e) {
-                console.error('Embedding error:', e.message);
+                console.error('Embedding error for record:', rec.name || 'Unknown', e.message);
+                // Return empty zeroes or null to maintain array index mapping gracefully
                 return null;
             }
         }));
         embeddings.push(...results);
-        console.log(`Processed ${Math.min(i + BATCH, placementData.length)}/${placementData.length}`);
+        console.log(`Processed ${Math.min(i + BATCH, placementData.length)}/${placementData.length} records...`);
         
         // Write to cache periodically to avoid loss
-        if (i % 150 === 0) await fs.writeJson(CACHE_FILE, embeddings);
+        if (i % 30 === 0 && i !== 0) {
+             await fs.writeJson(CACHE_FILE, embeddings);
+             console.log("Progress saved to cache.");
+        }
         
-        await new Promise(r => setTimeout(r, 200));
+        // Wait between batches to not trip the fast-rate detectors on free-tier
+        await sleep(1500);
     }
     await fs.writeJson(CACHE_FILE, embeddings);
-    console.log("Embeddings cached.");
+    console.log("All Embeddings generated and cached successfully.");
 }
 
 function formatRecord(rec, queryKeywords = []) {
@@ -332,8 +361,13 @@ async function query(userQuery, seniorProfiles = []) {
         const embeddingModel = genAI.getGenerativeModel({ model: EMBEDDING_MODEL });
         
         if (embeddings.length > 0) {
-            const qResult = await embeddingModel.embedContent(userQuery);
-            const qEmb = qResult.embedding.values;
+            let qEmb = null;
+            try {
+                const qResult = await invokeWithRetry(() => embeddingModel.embedContent(userQuery), 3, 1000);
+                qEmb = qResult.embedding.values;
+            } catch (embedError) {
+                console.warn("User query embedding failed (Rate limit). Falling back to pure keyword search:", embedError.message);
+            }
 
             // Extract keywords for simple boosting
             const keywords = userQuery.toLowerCase().split(/\s+/).filter(k => k.length > 2);
@@ -357,7 +391,8 @@ async function query(userQuery, seniorProfiles = []) {
                         }
                     }
                     if (matches > 0) {
-                        keywordScore = (matches / keywords.length) * 0.8; 
+                        // Increase keyword impact heavily if semantic similarity completely fails
+                        keywordScore = (matches / keywords.length) * (qEmb ? 0.8 : 2.0); 
                     }
                 }
 
@@ -367,7 +402,7 @@ async function query(userQuery, seniorProfiles = []) {
             scored.sort((a, b) => b.score - a.score);
             
             // Use dynamic context window - include results above threshold
-            const SCORE_THRESHOLD = 0.3;
+            const SCORE_THRESHOLD = qEmb ? 0.3 : 0.5; // Stricter threshold for pure keyword match
             const MAX_RESULTS = 20;
             topMatches = scored.filter(s => s.score >= SCORE_THRESHOLD).slice(0, MAX_RESULTS);
             
@@ -376,7 +411,7 @@ async function query(userQuery, seniorProfiles = []) {
             if (topMatches.length > 0) {
                 console.log(`Top ${topMatches.length} matches (threshold ${SCORE_THRESHOLD}):`);
                 topMatches.slice(0, 3).forEach(m => {
-                    console.log(`  - ${m.rec.name || m.rec.chunkTitle || 'Unnamed'} | Score: ${m.score.toFixed(3)}`);
+                    console.log(`  - ${m.rec.name || m.rec.chunkTitle || 'Unnamed'} | Total Score: ${m.score.toFixed(3)} (Emb: ${m.embScore.toFixed(3)}, Kw: ${m.keywordScore.toFixed(3)})`);
                 });
             }
         }
@@ -438,7 +473,7 @@ User Question: ${userQuery}
 
 Answer (grounded only in provided context):`;
 
-        const response = await model.generateContent(prompt);
+        const response = await invokeWithRetry(() => model.generateContent(prompt));
         const rawText = response.response.text();
 
         // 5. Parse and VALIDATE tool actions
