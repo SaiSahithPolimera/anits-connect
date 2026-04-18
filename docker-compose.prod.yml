@@ -46,7 +46,7 @@ services:
       # We ONLY mount the dynamic directories where data needs to be persistent.
       # The code will be read from the Docker image directly.
       - uploads_data:/app/uploads
-      - ./data/embeddings_cache.json:/app/data/embeddings_cache.json
+      - rag_data:/app/data
     depends_on:
       - mongodb
       - redis
@@ -71,6 +71,7 @@ volumes:
   mongodb_data:
   redis_data:
   uploads_data:
+  rag_data:
 
 networks:
   asp-network:

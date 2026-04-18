@@ -21,7 +21,11 @@ const placementRecordSchema = new mongoose.Schema({
 
     // Source tracking
     sourceFile: { type: String },
-    originalText: { type: String }
+    originalText: { type: String },
+
+    // RAG and AI Vectors
+    embedding: { type: [Number], default: [] },
+    addedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
 
 // Text index for full-text search fallback

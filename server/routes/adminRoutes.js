@@ -10,13 +10,11 @@ const Engagement = require('../models/Engagement');
 const Interview = require('../models/Interview');
 const MentorshipRequest = require('../models/MentorshipRequest');
 const DirectMessage = require('../models/DirectMessage');
+const PlacementRecord = require('../models/PlacementRecord');
 const { initialize: initializeRagEngine, getStatus: getRagEngineStatus } = require('../ragEngine');
 const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
-
-const RAG_DATA_FILE = path.join(__dirname, '../../data/processed_placement_data.json');
-const EMBEDDINGS_CACHE_FILE = path.join(__dirname, '../../data/embeddings_cache.json');
 
 function triggerRagRebuild() {
     setImmediate(() => {
@@ -158,23 +156,7 @@ function extractRawTextFromBuffer(buffer) {
     return textParts.join('\n').trim();
 }
 
-/**
- * Read existing RAG data file safely
- */
-async function readRagData() {
-    if (await fs.pathExists(RAG_DATA_FILE)) {
-        return await fs.readJson(RAG_DATA_FILE);
-    }
-    return [];
-}
 
-/**
- * Write RAG data file
- */
-async function writeRagData(data) {
-    await fs.ensureDir(path.dirname(RAG_DATA_FILE));
-    await fs.writeJson(RAG_DATA_FILE, data, { spaces: 2 });
-}
 
 // ─── User Management Routes ────────────────────────────────────────────────
 
@@ -267,7 +249,7 @@ router.delete('/users/:id', authenticate, requireRole('admin'), async (req, res)
 // GET /api/admin/knowledge-base — list all documents in knowledge base
 router.get('/knowledge-base', authenticate, requireRole('admin'), async (req, res) => {
     try {
-        const ragData = await readRagData();
+        const ragData = await PlacementRecord.find().lean();
 
         // Group by sourceFile
         const documentsMap = new Map();
@@ -319,32 +301,27 @@ router.get('/knowledge-base', authenticate, requireRole('admin'), async (req, re
 router.delete('/knowledge-base/:sourceFile', authenticate, requireRole('admin'), async (req, res) => {
     try {
         const sourceFile = decodeURIComponent(req.params.sourceFile);
-        const ragData = await readRagData();
-
-        const beforeCount = ragData.length;
-        const filtered = ragData.filter(r => {
-            const recordSource = r.sourceFile || r.file || 'Unknown';
-            return recordSource !== sourceFile;
+        
+        // Use MongoDB directly
+        const deleteResult = await PlacementRecord.deleteMany({
+            $or: [
+                { sourceFile: sourceFile },
+                { file: sourceFile }
+            ]
         });
-        const removedCount = beforeCount - filtered.length;
 
-        if (removedCount === 0) {
+        if (deleteResult.deletedCount === 0) {
             return res.status(404).json({ error: `No records found for "${sourceFile}".` });
         }
 
-        await writeRagData(filtered);
-
-        // Also clear embeddings cache since data changed
-        if (await fs.pathExists(EMBEDDINGS_CACHE_FILE)) {
-            await fs.remove(EMBEDDINGS_CACHE_FILE);
-        }
+        const remainingRecords = await PlacementRecord.countDocuments();
 
         triggerRagRebuild();
 
         res.json({
-            message: `Removed ${removedCount} records from "${sourceFile}". RAG Engine is rebuilding.`,
-            removedCount,
-            remainingRecords: filtered.length
+            message: `Removed ${deleteResult.deletedCount} records from "${sourceFile}". RAG Engine is rebuilding.`,
+            removedCount: deleteResult.deletedCount,
+            remainingRecords
         });
     } catch (error) {
         console.error('Knowledge base delete error:', error);
@@ -440,18 +417,6 @@ router.post('/placement-data', authenticate, requireRole('admin'), upload.single
                 return res.status(400).json({ error: 'The uploaded spreadsheet has no data rows.' });
             }
 
-            // Also write raw data for CSV/XLSX
-            const rawDataFile = path.join(__dirname, '../../data/raw_placement_data.json');
-            let existingRaw = [];
-            if (await fs.pathExists(rawDataFile)) {
-                existingRaw = await fs.readJson(rawDataFile);
-            }
-            if (replaceExisting) {
-                existingRaw = existingRaw.filter(r => r._sourceFile !== req.file.originalname);
-            }
-            const taggedRaw = data.map(row => ({ ...row, _sourceFile: req.file.originalname }));
-            await fs.writeJson(rawDataFile, [...existingRaw, ...taggedRaw], { spaces: 2 });
-
             // Format for RAG engine
             newRecords = data.map((row, i) => {
                 const chunkText = Object.entries(row)
@@ -467,31 +432,32 @@ router.post('/placement-data', authenticate, requireRole('admin'), upload.single
             });
         }
 
-        // Load existing RAG data
-        let existingRagData = await readRagData();
-
-        // Handle replace vs append
+        // Directly interact with DB
         if (replaceExisting) {
-            existingRagData = existingRagData.filter(r => {
-                const source = r.sourceFile || r.file || '';
-                return source !== req.file.originalname;
+            await PlacementRecord.deleteMany({
+                $or: [
+                    { sourceFile: req.file.originalname },
+                    { file: req.file.originalname }
+                ]
             });
+        } else {
+            // Check for duplicates
+            const existingCount = await PlacementRecord.countDocuments({
+                $or: [
+                    { sourceFile: req.file.originalname },
+                    { file: req.file.originalname }
+                ]
+            });
+            if (existingCount > 0) {
+                isDuplicate = true;
+            }
         }
 
-        // Check for duplicates
-        const existingFromSameFile = existingRagData.filter(r => {
-            const source = r.sourceFile || r.file || '';
-            return source === req.file.originalname;
-        });
-        const isDuplicate = existingFromSameFile.length > 0;
-
-        const mergedRag = [...existingRagData, ...newRecords];
-        await writeRagData(mergedRag);
-
-        // Clear embeddings cache since data changed
-        if (await fs.pathExists(EMBEDDINGS_CACHE_FILE)) {
-            await fs.remove(EMBEDDINGS_CACHE_FILE);
+        if (newRecords.length > 0) {
+            await PlacementRecord.insertMany(newRecords);
         }
+        
+        const totalRecords = await PlacementRecord.countDocuments();
 
         triggerRagRebuild();
 
@@ -503,9 +469,9 @@ router.post('/placement-data', authenticate, requireRole('admin'), upload.single
             message: ext === '.pdf'
                 ? `Successfully processed PDF (${newRecords.length} chunks extracted). RAG Engine is rebuilding.`
                 : `Successfully imported (${newRecords.length} records). RAG Engine is rebuilding.`,
-            totalRecords: mergedRag.length,
+            totalRecords: totalRecords,
             importedRecords: newRecords.length,
-            isDuplicate,
+            isDuplicate: typeof isDuplicate !== 'undefined' ? isDuplicate : false,
             replaced: replaceExisting
         };
         if (warning) result.warning = warning;

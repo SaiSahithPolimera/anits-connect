@@ -13,6 +13,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs-extra');
 const path = require('path');
 const Profile = require('./models/Profile');
+const PlacementRecord = require('./models/PlacementRecord');
 require('dotenv').config();
 
 // Utility for exponential backoff handling 429 errors
@@ -37,8 +38,7 @@ async function invokeWithRetry(apiCall, maxRetries = 5, baseDelay = 2000) {
     throw new Error(`API Request failed after ${maxRetries} retries due to rate limiting.`);
 }
 
-const DATA_FILE = path.join(__dirname, '../data/processed_placement_data.json');
-const CACHE_FILE = path.join(__dirname, '../data/embeddings_cache.json');
+
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -168,31 +168,25 @@ function buildEmbeddingText(record) {
 async function performInitialize({ forceRegenerateEmbeddings = false } = {}) {
     console.log("Initializing RAG Engine with anti-hallucination measures...");
 
-    if (!fs.existsSync(DATA_FILE)) {
-        console.warn("Warning: Processed data file not found. RAG will work with senior data only.");
-        placementData = [];
+    placementData = await PlacementRecord.find().lean();
+    
+    if (placementData.length === 0) {
+        console.warn("Warning: DB placement data not found. RAG will work with senior data only.");
         embeddings = [];
         buildDataIndex();
         return;
     }
-    placementData = await fs.readJson(DATA_FILE);
-    console.log(`Loaded ${placementData.length} placement records.`);
+    
+    console.log(`Loaded ${placementData.length} placement records from DB.`);
 
     // Build data index for fact verification
     buildDataIndex();
 
-    if (!forceRegenerateEmbeddings && fs.existsSync(CACHE_FILE)) {
-        console.log("Loading embeddings from cache...");
-        embeddings = await fs.readJson(CACHE_FILE);
-        if (embeddings.length !== placementData.length) {
-            console.log(`Cache mismatch (${embeddings.length} vs ${placementData.length}). Regenerating...`);
-            await generateEmbeddings();
-        }
+    if (forceRegenerateEmbeddings) {
+        console.log("Forced reindex requested. Regenerating embeddings from latest data...");
+        await generateEmbeddings(true);
     } else {
-        if (forceRegenerateEmbeddings) {
-            console.log("Forced reindex requested. Regenerating embeddings from latest data...");
-        }
-        await generateEmbeddings();
+        await generateEmbeddings(false);
     }
 }
 
@@ -253,39 +247,48 @@ function getStatus() {
     };
 }
 
-async function generateEmbeddings() {
-    console.log("Generating embeddings (this may take a while)...");
+async function generateEmbeddings(forceAll = false) {
+    console.log("Checking and generating missing embeddings...");
     embeddings = [];
     const embeddingModel = genAI.getGenerativeModel({ model: EMBEDDING_MODEL });
     
     // REDUCED concurrency from 30 to 3 to prevent hitting Google's rate limits
     const BATCH = 3; 
+    let generatedCount = 0;
+    
     for (let i = 0; i < placementData.length; i += BATCH) {
         const batch = placementData.slice(i, i + BATCH);
+        let batchGenerated = false;
+        
         const results = await Promise.all(batch.map(async (rec) => {
+            // Use existing embedding if valid and not forcing
+            if (!forceAll && rec.embedding && rec.embedding.length > 0) {
+                return rec.embedding;
+            }
+            
             try {
+                batchGenerated = true;
                 const r = await invokeWithRetry(() => embeddingModel.embedContent(buildEmbeddingText(rec)));
-                return r.embedding.values;
+                const vec = r.embedding.values;
+                
+                // Directly write to MongoDB
+                await PlacementRecord.updateOne({ _id: rec._id }, { $set: { embedding: vec } });
+                generatedCount++;
+                return vec;
             } catch (e) {
                 console.error('Embedding error for record:', rec.name || 'Unknown', e.message);
-                // Return empty zeroes or null to maintain array index mapping gracefully
                 return null;
             }
         }));
+        
         embeddings.push(...results);
-        console.log(`Processed ${Math.min(i + BATCH, placementData.length)}/${placementData.length} records...`);
         
-        // Write to cache periodically to avoid loss
-        if (i % 30 === 0 && i !== 0) {
-             await fs.writeJson(CACHE_FILE, embeddings);
-             console.log("Progress saved to cache.");
+        if (batchGenerated) {
+             console.log(`Progress: checked ${Math.min(i + BATCH, placementData.length)}/${placementData.length} records. Generated ${generatedCount} new embeddings.`);
+             await sleep(1500); // Only sleep if we actually hit the API
         }
-        
-        // Wait between batches to not trip the fast-rate detectors on free-tier
-        await sleep(1500);
     }
-    await fs.writeJson(CACHE_FILE, embeddings);
-    console.log("All Embeddings generated and cached successfully.");
+    console.log(`Initialization complete. Generated ${generatedCount} new embeddings in DB.`);
 }
 
 function formatRecord(rec, queryKeywords = []) {
