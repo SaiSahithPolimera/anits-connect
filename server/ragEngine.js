@@ -492,8 +492,8 @@ User Question: ${userQuery}`;
         let result = await invokeWithRetry(() => chat.sendMessage(prompt));
 
         // 5. Handle Native Tool Calling execution loop
-        if (result.response.functionCalls && result.response.functionCalls().length > 0) {
-            const calls = result.response.functionCalls();
+        const calls = typeof result.response.functionCalls === 'function' ? result.response.functionCalls() : result.response.functionCalls;
+        if (calls && calls.length > 0) {
             const functionResponses = [];
             
             for (const call of calls) {
