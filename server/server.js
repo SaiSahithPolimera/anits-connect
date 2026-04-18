@@ -111,13 +111,17 @@ app.post('/api/chat', async (req, res) => {
 // Initialize and start
 console.log('Starting server initialization...');
 
-Promise.all([
-    connectDB(),
-    initialize()
-])
+connectDB()
     .then(() => {
         console.log('✓ MongoDB connected');
-        console.log('✓ RAG Engine initialized');
+
+        // Start RAG Engine Initialization asynchronously in the background
+        // This prevents the server blocked from listening on PORT during heavy rate limits
+        initialize().then(() => {
+            console.log('✓ RAG Engine background initialization completed');
+        }).catch(err => {
+            console.error('✗ RAG Engine background task failed:', err);
+        });
 
         // Initialize Socket.io
         initializeSocket(server);
