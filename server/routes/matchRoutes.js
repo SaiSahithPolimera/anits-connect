@@ -77,10 +77,29 @@ router.get('/suggestions', authenticate, requireRole('student'), async (req, res
 // GET /api/match/alumni — search/filter alumni
 router.get('/alumni', authenticate, async (req, res) => {
     try {
-        const { company, role, branch, skills, available, search, page = 1, limit = 20 } = req.query;
+        const { company, role, branch, skills, available, search, page = 1, limit = 500 } = req.query;
 
-        const alumni = await User.find({ role: 'alumni', isBlocked: { $ne: true }, _id: { $ne: req.user._id } }).select('_id');
+        const alumni = await User.find({ role: 'alumni', isBlocked: { $ne: true }, _id: { $ne: req.user._id } }).select('_id email');
         const alumniIds = alumni.map(a => a._id);
+
+        // Auto-create profiles for alumni who don't have one yet
+        const existingProfiles = await Profile.find({ userId: { $in: alumniIds } }).select('userId').lean();
+        const existingUserIds = new Set(existingProfiles.map(p => p.userId.toString()));
+        const missingAlumni = alumni.filter(a => !existingUserIds.has(a._id.toString()));
+
+        if (missingAlumni.length > 0) {
+            const bulkProfiles = missingAlumni.map(a => ({
+                userId: a._id,
+                name: a.email.split('@')[0], // Use email prefix as name
+                isAvailableForMentoring: true
+            }));
+            try {
+                await Profile.insertMany(bulkProfiles, { ordered: false });
+            } catch (bulkErr) {
+                // Ignore duplicate key errors from race conditions
+                if (bulkErr.code !== 11000) console.error('Bulk profile creation partial error:', bulkErr.message);
+            }
+        }
 
         const filter = { userId: { $in: alumniIds } };
 
@@ -115,6 +134,7 @@ router.get('/alumni', authenticate, async (req, res) => {
             pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / parseInt(limit)) }
         });
     } catch (error) {
+        console.error('Alumni search error:', error);
         res.status(500).json({ error: 'Failed to search alumni.' });
     }
 });
