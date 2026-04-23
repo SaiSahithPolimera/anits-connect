@@ -50,7 +50,10 @@ export default function MentorListPage() {
             if (filters.company)  params.append('company',   filters.company);
             if (filters.available) params.append('available', filters.available);
             const res = await api.get(`/match/alumni?${params.toString()}`);
-            setAlumni(res.data.alumni || []);
+            const allAlumni = res.data.alumni || [];
+            // Exclude the currently logged-in user from the list
+            const currentUserId = user?.id || user?._id;
+            setAlumni(currentUserId ? allAlumni.filter(a => a.userId !== currentUserId) : allAlumni);
         } catch {
             toast.error('Failed to load mentors');
         } finally {

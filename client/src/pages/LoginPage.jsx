@@ -115,8 +115,8 @@ export default function LoginPage() {
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {[
-                            { label: '👨‍🎓 Student', email: 'student1@anits.edu.in', pw: 'password123', color: '#3b82f6' },
-                            { label: '👩‍💼 Alumni', email: 'kavya.nair@gmail.com', pw: 'password123', color: '#8b5cf6' },
+                            { label: '👨‍🎓 Student', email: 'saisahithpolimera769@gmail.com', pw: 'Sai@360.', color: '#3b82f6' },
+                            { label: '👩‍💼 Alumni', email: 'tejesk916@gmail.com', pw: 'Infosys123', color: '#8b5cf6' },
                         ].map(d => (
                             <button key={d.email} type="button" className="btn btn-secondary btn-sm"
                                 onClick={() => quickLogin(d.email, d.pw)}
